@@ -20,31 +20,101 @@
 #include "tas2780.h"
 #include "chprintf.h"
 
-/*
- * Device states.
+#define I2S_DRIVER (I2SD3)
+#define USB_DRIVER (USBD1)
+
+static const USBDescriptor *
+get_descriptor_cb(USBDriver *usbp, uint8_t dtype, uint8_t dindex, uint16_t lang);
+bool audio_requests_hook(USBDriver *usbp);
+void audio_received_cb(USBDriver *usbp, usbep_t ep);
+void audio_feedback_cb(USBDriver *usbp, usbep_t ep);
+static void usb_event(USBDriver *usbp, usbevent_t event);
+
+static struct audio_context g_audio_context;
+static BaseSequentialStream *stream = (BaseSequentialStream *)&SD2;
+
+/**
+ * @brief Settings structure for the USB driver.
  */
-static audio_state_t audio;
+static const USBConfig usbcfg = {
+    usb_event,
+    get_descriptor_cb,
+    audio_requests_hook,
+    NULL,
+};
 
-/* I2S buffer */
-static uint16_t dac_buffer[AUDIO_BUFFER_SAMPLE_COUNT + AUDIO_MAX_PACKET_SIZE];
-/* I2S buffer write address */
-static uint16_t dac_buffer_wr_addr = 0;
+/**
+ * @brief A structure that holds the state of endpoint 1.
+ */
+static USBOutEndpointState endpoint1_state;
 
-static volatile uint32_t feedback_value = 0;
-static volatile uint32_t previous_counter_value = 0;
-static volatile uint32_t timer_count_difference = 0;
-static volatile bool b_is_first_sof = true;
-static volatile int sof_package_count = 0;
-static uint8_t sof_feedback_buffer[3];
+/**
+ * @brief The configuration structure for endpoint 1.
+ */
+static const USBEndpointConfig endpoint1_config = {
+    USB_EP_MODE_TYPE_ISOC,
+    NULL,
+    NULL,
+    audio_received_cb,
+    0x0000,
+    AUDIO_MAX_PACKET_SIZE,
+    NULL,
+    &endpoint1_state,
+    1,
+    NULL};
 
-BaseSequentialStream *stream = (BaseSequentialStream *)&SD2;
+/**
+ * @brief A structure that holds the state of endpoint 2.
+ */
+static USBInEndpointState endpoint2_state;
 
-/*
- * Handles the GET_DESCRIPTOR callback. All required descriptors must be
- * handled here.
+/**
+ * @brief The configuration structure for endpoint 2.
+ */
+static const USBEndpointConfig endpoint2_config = {
+    USB_EP_MODE_TYPE_ISOC,
+    NULL,
+    audio_feedback_cb,
+    NULL,
+    0x0004,
+    0x0000,
+    &endpoint2_state,
+    NULL,
+    1,
+    NULL};
+
+/**
+ * @brief Settings structure for the TAS2780 I2C driver.
+ */
+static const I2CConfig tas2780_i2c_config = {
+    .op_mode = OPMODE_I2C,
+    .clock_speed = 100000u,
+    .duty_cycle = STD_DUTY_CYCLE};
+
+/**
+ * @brief Settings structure for the I2S driver.
+ * @details Enables the master clock output for timer capture.
+ */
+static const I2SConfig i2s_config = {
+    .tx_buffer = (const uint8_t *)g_audio_context.playback.buffer,
+    .rx_buffer = NULL,
+    .size = AUDIO_BUFFER_SAMPLE_COUNT,
+    .end_cb = NULL,
+    .i2spr = SPI_I2SPR_MCKOE | (SPI_I2SPR_I2SDIV & 6)};
+
+volatile size_t g_sample_distance = 0;
+
+/**
+ * @brief Callback function that returns the requested USB descriptor.
+ *
+ * @param usbp A pointer to the USB driver structure.
+ * @param dtype The descriptor type that is requested.
+ * @param dindex The index of data within the descriptor to fetch.
+ * @param lang Currently unused - language specifier.
+ * @return const USBDescriptor* The requested descriptor.
  */
 static const USBDescriptor *
-get_descriptor(USBDriver *usbp, uint8_t dtype, uint8_t dindex, uint16_t lang)
+get_descriptor_cb(USBDriver *usbp, uint8_t dtype, uint8_t dindex, uint16_t lang)
 {
 
   (void)usbp;
@@ -62,30 +132,6 @@ get_descriptor(USBDriver *usbp, uint8_t dtype, uint8_t dindex, uint16_t lang)
   return NULL;
 }
 
-/*
- * Framerate feedback stuff.
- */
-static const I2CConfig tas2780_i2c_config = {
-    .op_mode = OPMODE_I2C,
-    .clock_speed = 100000u,
-    .duty_cycle = STD_DUTY_CYCLE};
-
-static const I2SConfig i2scfg = {
-    .tx_buffer = (const uint8_t *)dac_buffer,
-    .rx_buffer = NULL,
-    .size = AUDIO_BUFFER_SAMPLE_COUNT,
-    .end_cb = NULL,
-    .i2spr = SPI_I2SPR_MCKOE | (SPI_I2SPR_I2SDIV & 6)};
-
-static const audio_config_t audiocfg = {
-    &USBD1,
-    &I2SD3};
-
-volatile size_t sample_distance = 0;
-
-/*
- * Green LED blinker thread, times are in milliseconds.
- */
 static THD_WORKING_AREA(wa_reporting_thread, 128);
 static THD_FUNCTION(reporting_thread, arg)
 {
@@ -96,76 +142,93 @@ static THD_FUNCTION(reporting_thread, arg)
 
   while (true)
   {
-    chprintf(stream, "feedback_value: %lu\n", feedback_value);
-    chprintf(stream, "Audio buffer use: %lu / %lu\n", AUDIO_BUFFER_SAMPLE_COUNT - sample_distance, AUDIO_BUFFER_SAMPLE_COUNT);
+    chprintf(stream, "Feedback value: %lu\n", g_audio_context.feedback.value);
+    chprintf(stream, "Audio buffer use: %lu / %lu\n", AUDIO_BUFFER_SAMPLE_COUNT - g_sample_distance, AUDIO_BUFFER_SAMPLE_COUNT);
     chThdSleepMilliseconds(500);
   }
 }
 
-/*
- * TIM2 interrupt handler
- * TIM2 clocked by I2S master clock (PC7 (I2S_MCK) connected to PA5 (TIM2_ETR)).
- * TIM2 triggers on USB start of frame.
+/**
+ * @brief The interrupt handler for timer TIM2. Called upon reception of a USB start of frame (SOF) signal.
+ * @details The timer is used for counting the interval between SOF signals, which arrive roughly with a frequency
+ * of 1 kHz. Since the timer is clocked by the I2S master clock, it counts the SOF period in terms of the I2S frequency.
+ * In other words, it relates the SOF period to the output sample rate, which is required for feedback calculation.
+ *
+ * USB audio feedback calculation requires the device to provide its sampling rate in relation to the SOF period.
  */
 OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
 {
   OSAL_IRQ_PROLOGUE();
 
+  struct audio_feedback *p_feedback = &g_audio_context.feedback;
   uint32_t counter_value = TIM2->CNT;
-  uint32_t sr = TIM2->SR;
+
+  // Reset any timer interrupt flags.
+  uint32_t timer_status_register = TIM2->SR;
   TIM2->SR = 0;
 
-  if (sr & TIM_SR_TIF)
+  if (timer_status_register & TIM_SR_TIF)
   {
+    // Trigger interrupt flag was set.
+
     chSysLockFromISR();
-    if (!b_is_first_sof)
+    if (!(p_feedback->b_is_first_sof))
     {
-      if (previous_counter_value < counter_value)
+      // Handle timer wrap-around.
+      if (p_feedback->previous_counter_value < counter_value)
       {
-        timer_count_difference += counter_value - previous_counter_value;
+        p_feedback->timer_count_difference += counter_value - p_feedback->previous_counter_value;
       }
       else
       {
-        timer_count_difference += UINT32_MAX - previous_counter_value + counter_value;
+        p_feedback->timer_count_difference += UINT32_MAX - p_feedback->previous_counter_value + counter_value;
       }
 
-      // Feedback value calculated every 64 SOFs = 64 ms.
-      sof_package_count++;
-      if (sof_package_count == 64)
+      // Feedback value is calculated every 64 SOF interrupts => every 64 ms.
+      p_feedback->sof_package_count++;
+      if (p_feedback->sof_package_count == 64)
       {
-        feedback_value = timer_count_difference & 0xFFFFFFUL;
+        // Conveniently, the timer count difference at 64 ms count periods matches the required feedback format.
+        // The feedback endpoint requires the device sample rate in kHz in a 10.14 binary (fixpoint) format.
 
-        sof_feedback_buffer[0] = feedback_value & 0xFF;
-        sof_feedback_buffer[1] = (feedback_value >> 8) & 0xFF;
-        sof_feedback_buffer[2] = (feedback_value >> 16) & 0xFF;
-        timer_count_difference = 0;
-        sof_package_count = 0;
-        audio.b_sof_feedback_valid = true;
+        // - The master clock runs 256 times as fast as the reference clock.
+        // - The conversion of fs / kHz to fs / Hz adds a factor of 1000
+        // - The counting period is 64 ms long.
+        // Thus
+        //   fs / kHz * 2**14 = fs * 256 * 64e-3 s
+        //
+        // where the left side is the expected format, and the right side the result of this counting function.
+        p_feedback->value = p_feedback->timer_count_difference;
+
+        // Translate feedback value to a buffer of three bytes.
+        p_feedback->buffer[0] = p_feedback->value & 0xFF;
+        p_feedback->buffer[1] = (p_feedback->value >> 8) & 0xFF;
+        p_feedback->buffer[2] = (p_feedback->value >> 16) & 0xFF;
+
+        p_feedback->timer_count_difference = 0;
+        p_feedback->sof_package_count = 0;
+        p_feedback->b_is_valid = true;
       }
     }
-    b_is_first_sof = false;
-    previous_counter_value = counter_value;
+
+    p_feedback->b_is_first_sof = false;
+    p_feedback->previous_counter_value = counter_value;
     chSysUnlockFromISR();
   }
 
   OSAL_IRQ_EPILOGUE();
 }
 
-/*
- * Start frame interval measure.
+/**
+ * @brief Set up the timer peripheral for counting USB start of frame (SOF) periods.
  */
-void start_sof_capture(void)
+void audio_start_sof_capture(void)
 {
   /* Reset TIM2 */
   rccResetTIM2();
   nvicEnableVector(STM32_TIM2_NUMBER, STM32_IRQ_TIM2_PRIORITY);
 
   chSysLock();
-  previous_counter_value = 0;
-  timer_count_difference = 0;
-  b_is_first_sof = true;
-  sof_package_count = 0;
-  audio.b_sof_feedback_valid = false;
 
   /* Enable TIM2 counting */
   TIM2->CR1 = TIM_CR1_CEN;
@@ -178,168 +241,159 @@ void start_sof_capture(void)
   chSysUnlock();
 }
 
-/*
- * Stop frame interval measure.
+/**
+ * @brief Stop the timer peripheral for counting USB start of frame (SOF) periods.
  */
-void stop_sof_capture(void)
+void audio_stop_sof_capture(void)
 {
   chSysLock();
+  audio_init_feedback(&g_audio_context.feedback);
+
   nvicDisableVector(STM32_TIM2_NUMBER);
   TIM2->CR1 = 0;
-  audio.b_sof_feedback_valid = false;
   chSysUnlock();
 }
 
-/*
- * Feedback transmitted (or dropped) in current frame.
+/**
+ * @brief Joint callback for when feedback was transmitted, or failed, in the current frame.
+ *
+ * @param usbp A pointer to the USB driver structure.
+ * @param ep The endpoint, for which the feedback was called.
  */
-void audio_feedback(USBDriver *usbp, usbep_t ep)
+void audio_feedback_cb(USBDriver *usbp, usbep_t ep)
 {
-  if (audio.b_playback_enabled)
+  if (g_audio_context.playback.b_enabled)
   {
-    /* Transmit feedback data */
     chSysLockFromISR();
-    if (audio.b_sof_feedback_valid)
-      usbStartTransmitI(usbp, ep, sof_feedback_buffer, 3);
+
+    if (g_audio_context.feedback.b_is_valid)
+    {
+      usbStartTransmitI(usbp, ep, g_audio_context.feedback.buffer, AUDIO_FEEDBACK_BUFFER_SIZE);
+    }
     else
+    {
+      // Transmit an empty packet.
       usbStartTransmitI(usbp, ep, NULL, 0);
+    }
+
     chSysUnlockFromISR();
   }
 }
 
-/*
- * Data received (or not) in current frame.
+/**
+ * @brief Joint callback for when audio data was received from the host, or the reception failed, in the current frame.
+ *
+ * @param usbp A pointer to the USB driver structure.
+ * @param ep The endpoint, for which the feedback was called.
  */
-void audio_received(USBDriver *usbp, usbep_t ep)
+void audio_received_cb(USBDriver *usbp, usbep_t ep)
 {
-  if (audio.b_playback_enabled)
-  {
-    uint16_t new_addr = dac_buffer_wr_addr + usbGetReceiveTransactionSizeX(usbp, ep) / 2;
+  struct audio_playback *p_playback = &g_audio_context.playback;
 
-    /* Handle buffer wrap */
-    if (new_addr >= AUDIO_BUFFER_SAMPLE_COUNT)
+  if (p_playback->b_enabled)
+  {
+    uint16_t new_write_offset = p_playback->buffer_write_offset + usbGetReceiveTransactionSizeX(usbp, ep) / AUDIO_SAMPLE_SIZE;
+
+    // Handle buffer wrap-around.
+    if (new_write_offset >= AUDIO_BUFFER_SAMPLE_COUNT)
     {
-      for (int i = AUDIO_BUFFER_SAMPLE_COUNT; i < new_addr; i++)
-        dac_buffer[i - AUDIO_BUFFER_SAMPLE_COUNT] = dac_buffer[i];
-      new_addr -= AUDIO_BUFFER_SAMPLE_COUNT;
+      for (size_t sample_index = AUDIO_BUFFER_SAMPLE_COUNT; sample_index < new_write_offset; sample_index++)
+      {
+        p_playback->buffer[sample_index - AUDIO_BUFFER_SAMPLE_COUNT] = p_playback->buffer[sample_index];
+      }
+      new_write_offset -= AUDIO_BUFFER_SAMPLE_COUNT;
     }
-    dac_buffer_wr_addr = new_addr;
+
+    p_playback->buffer_write_offset = new_write_offset;
 
     chSysLockFromISR();
-    if (!audio.b_output_enabled && (dac_buffer_wr_addr >= (AUDIO_BUFFER_SAMPLE_COUNT / 2)))
+
+    // Start playback on the I2S device, when the playback buffer is at least half full.
+    if (!p_playback->b_output_enabled && (p_playback->buffer_write_offset >= (AUDIO_BUFFER_SAMPLE_COUNT / 2)))
     {
-      audio.b_output_enabled = true;
-      i2sStartExchangeI(&I2SD3);
+      p_playback->b_output_enabled = true;
+      i2sStartExchangeI(&I2S_DRIVER);
     }
-    usbStartReceiveI(usbp, ep, (uint8_t *)&dac_buffer[dac_buffer_wr_addr], AUDIO_MAX_PACKET_SIZE);
+    usbStartReceiveI(usbp, ep, (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
 
-    size_t dma_address = AUDIO_BUFFER_SAMPLE_COUNT - I2SD3.dmatx->stream->NDTR;
-    sample_distance = 0;
+    // The current read index of the I2S DMA.
+    size_t read_offset = AUDIO_BUFFER_SAMPLE_COUNT - I2S_DRIVER.dmatx->stream->NDTR;
+    g_sample_distance = 0;
 
-    if (dma_address > dac_buffer_wr_addr)
+    // Calculate the distance between the DMA read pointer, and the USB driver's write pointer in the playback buffer.
+    if (read_offset > p_playback->buffer_write_offset)
     {
-      sample_distance += AUDIO_BUFFER_SAMPLE_COUNT;
+      g_sample_distance += AUDIO_BUFFER_SAMPLE_COUNT;
     }
-
-    sample_distance += (dac_buffer_wr_addr - dma_address);
+    g_sample_distance += (p_playback->buffer_write_offset - read_offset);
 
     chSysUnlockFromISR();
   }
 }
 
-/*
- * EP1 states.
+/**
+ * @brief Volume levels where changed. Updates the audio context.
+ *
+ * @param usbp A pointer to the USB driver structure.
  */
-static USBOutEndpointState ep1outstate;
-
-/*
- * EP1 initialization structure (IN & OUT).
- */
-static const USBEndpointConfig ep1config = {
-    USB_EP_MODE_TYPE_ISOC,
-    NULL,
-    NULL,
-    audio_received,
-    0x0000,
-    AUDIO_MAX_PACKET_SIZE,
-    NULL,
-    &ep1outstate,
-    1,
-    NULL};
-
-/*
- * EP2 states.
- */
-static USBInEndpointState ep2instate;
-
-/*
- * EP2 initialization structure (IN & OUT).
- */
-static const USBEndpointConfig ep2config = {
-    USB_EP_MODE_TYPE_ISOC,
-    NULL,
-    audio_feedback,
-    NULL,
-    0x0004,
-    0x0000,
-    &ep2instate,
-    NULL,
-    1,
-    NULL};
-
-/*
- * Temporary buffer for control data.
- */
-static uint8_t control_data[8];
-static uint8_t control_channel;
-
-/*
- * Volume data received.
- */
-static void notify_volume(USBDriver *usbp)
+static void audio_notify_volume_cb(USBDriver *usbp)
 {
   (void)usbp;
+  struct audio_control *p_control = &g_audio_context.control;
 
-  if (control_channel == 0xff)
+  if (p_control->channel == 0xFF)
   {
-    memcpy(audio.volume, control_data + sizeof(int16_t), 2 * sizeof(int16_t));
+    memcpy(p_control->channel_volume_levels, p_control->buffer + sizeof(int16_t), 2 * sizeof(int16_t));
   }
   else
   {
-    memcpy(&audio.volume[control_channel - 1], control_data, sizeof(int16_t));
+    memcpy(&p_control->channel_volume_levels[p_control->channel - 1], p_control->buffer, sizeof(int16_t));
   }
   chSysLockFromISR();
-  chEvtBroadcastFlagsI(&audio.audio_events, AUDIO_EVENT_VOLUME);
+  chEvtBroadcastFlagsI(&g_audio_context.audio_events, AUDIO_EVENT_VOLUME);
   chSysUnlockFromISR();
 }
 
-/*
- * Mute data received.
+/**
+ * @brief Channel mute information was changed. Updates the audio context.
+ *
+ * @param usbp A pointer to the USB driver structure.
  */
-static void notify_mute(USBDriver *usbp)
+static void audio_notify_mute_cb(USBDriver *usbp)
 {
   (void)usbp;
+  struct audio_control *p_control = &g_audio_context.control;
 
-  if (control_channel == 0xff)
+  if (p_control->channel == 0xff)
   {
-    audio.mute[0] = control_data[1];
-    audio.mute[1] = control_data[2];
+    p_control->b_channel_mute_states[0] = p_control->buffer[1];
+    p_control->b_channel_mute_states[1] = p_control->buffer[2];
   }
   else
   {
-    audio.mute[control_channel - 1] = control_data[0];
+    p_control->b_channel_mute_states[p_control->channel - 1] = p_control->buffer[0];
   }
   chSysLockFromISR();
-  chEvtBroadcastFlagsI(&audio.audio_events, AUDIO_EVENT_MUTE);
+  chEvtBroadcastFlagsI(&g_audio_context.audio_events, AUDIO_EVENT_MUTE);
   chSysUnlockFromISR();
 }
 
-/*
- * Handles requests for audio function unit (volume & mute).
+/**
+ * @brief Handle requests for the audio function unit (mute and volume control)
+ *
+ * @param usbp A pointer to the USB driver structure.
+ * @param req The basic request to handle.
+ * @param ctrl The control unit, for which the request applies.
+ * @param channel The channel to control.
+ * @param length The length of the requested control data.
+ * @return true in case of a successful request handling.
+ * @return false in case of an unknown request, or an inconsistent request.
  */
-bool audio_volume_control(USBDriver *usbp, uint8_t req, uint8_t ctrl,
-                          uint8_t channel, uint16_t length)
+bool audio_handle_request_cb(USBDriver *usbp, uint8_t req, uint8_t ctrl,
+                             uint8_t channel, uint16_t length)
 {
+  struct audio_control *p_control = &g_audio_context.control;
+
   switch (req)
   {
   case UAC_REQ_SET_MAX:
@@ -347,7 +401,7 @@ bool audio_volume_control(USBDriver *usbp, uint8_t req, uint8_t ctrl,
   case UAC_REQ_SET_RES:
     if (ctrl == UAC_FU_VOLUME_CONTROL)
     {
-      usbSetupTransfer(usbp, control_data, length, NULL);
+      usbSetupTransfer(usbp, p_control->buffer, length, NULL);
       return true;
     }
     break;
@@ -356,8 +410,8 @@ bool audio_volume_control(USBDriver *usbp, uint8_t req, uint8_t ctrl,
     if (ctrl == UAC_FU_VOLUME_CONTROL)
     {
       for (int i = 0; i < length; i++)
-        ((int16_t *)control_data)[i] = 0;
-      usbSetupTransfer(usbp, control_data, length, NULL);
+        ((int16_t *)p_control->buffer)[i] = 0;
+      usbSetupTransfer(usbp, p_control->buffer, length, NULL);
       return true;
     }
     break;
@@ -366,8 +420,8 @@ bool audio_volume_control(USBDriver *usbp, uint8_t req, uint8_t ctrl,
     if (ctrl == UAC_FU_VOLUME_CONTROL)
     {
       for (int i = 0; i < length; i++)
-        ((int16_t *)control_data)[i] = -96 * 256;
-      usbSetupTransfer(usbp, control_data, length, NULL);
+        ((int16_t *)p_control->buffer)[i] = -96 * 256;
+      usbSetupTransfer(usbp, p_control->buffer, length, NULL);
       return true;
     }
     break;
@@ -376,8 +430,8 @@ bool audio_volume_control(USBDriver *usbp, uint8_t req, uint8_t ctrl,
     if (ctrl == UAC_FU_VOLUME_CONTROL)
     {
       for (int i = 0; i < length; i++)
-        ((int16_t *)control_data)[i] = 128;
-      usbSetupTransfer(usbp, control_data, length, NULL);
+        ((int16_t *)p_control->buffer)[i] = 128;
+      usbSetupTransfer(usbp, p_control->buffer, length, NULL);
       return true;
     }
     break;
@@ -387,14 +441,14 @@ bool audio_volume_control(USBDriver *usbp, uint8_t req, uint8_t ctrl,
     {
       if (channel == 0xff)
       {
-        uint8_t value[3] = {0, audio.mute[0], audio.mute[1]};
-        memcpy(control_data, value, sizeof(value));
-        usbSetupTransfer(usbp, control_data, length, NULL);
+        uint8_t value[3] = {0, p_control->b_channel_mute_states[0], p_control->b_channel_mute_states[1]};
+        memcpy(p_control->buffer, value, sizeof(value));
+        usbSetupTransfer(usbp, p_control->buffer, length, NULL);
       }
       else
       {
-        memcpy(control_data, &audio.mute[channel - 1], sizeof(uint8_t));
-        usbSetupTransfer(usbp, control_data, length, NULL);
+        memcpy(p_control->buffer, &p_control->b_channel_mute_states[channel - 1], sizeof(uint8_t));
+        usbSetupTransfer(usbp, p_control->buffer, length, NULL);
       }
       return true;
     }
@@ -402,14 +456,14 @@ bool audio_volume_control(USBDriver *usbp, uint8_t req, uint8_t ctrl,
     {
       if (channel == 0xff)
       {
-        int16_t value[3] = {0, audio.volume[0], audio.volume[1]};
-        memcpy(control_data, value, sizeof(value));
-        usbSetupTransfer(usbp, control_data, length, NULL);
+        int16_t value[3] = {0, p_control->channel_volume_levels[0], p_control->channel_volume_levels[1]};
+        memcpy(p_control->buffer, value, sizeof(value));
+        usbSetupTransfer(usbp, p_control->buffer, length, NULL);
       }
       else
       {
-        memcpy(control_data, &audio.volume[channel - 1], sizeof(int16_t));
-        usbSetupTransfer(usbp, control_data, length, NULL);
+        memcpy(p_control->buffer, &p_control->channel_volume_levels[channel - 1], sizeof(int16_t));
+        usbSetupTransfer(usbp, p_control->buffer, length, NULL);
       }
       return true;
     }
@@ -418,14 +472,14 @@ bool audio_volume_control(USBDriver *usbp, uint8_t req, uint8_t ctrl,
   case UAC_REQ_SET_CUR:
     if (ctrl == UAC_FU_MUTE_CONTROL)
     {
-      control_channel = channel;
-      usbSetupTransfer(usbp, control_data, length, notify_mute);
+      p_control->channel = channel;
+      usbSetupTransfer(usbp, p_control->buffer, length, audio_notify_mute_cb);
       return true;
     }
     else if (ctrl == UAC_FU_VOLUME_CONTROL)
     {
-      control_channel = channel;
-      usbSetupTransfer(usbp, control_data, length, notify_volume);
+      p_control->channel = channel;
+      usbSetupTransfer(usbp, p_control->buffer, length, audio_notify_volume_cb);
       return true;
     }
     break;
@@ -437,20 +491,29 @@ bool audio_volume_control(USBDriver *usbp, uint8_t req, uint8_t ctrl,
   return false;
 }
 
-/*
- * Handles UAC-specific controls.
+/**
+ * @brief Handle USB audio control messages.
+ *
+ * @param usbp A pointer the USB driver structure.
+ * @param iface The target interface of the control message.
+ * @param entity The target functional unit.
+ * @param req The request code to handle.
+ * @param wValue The request payload.
+ * @param length The length of the requested data.
+ * @return true if a request could be answered successfully.
+ * @return false if a request could not be answered successfully.
  */
-bool audio_control(USBDriver *usbp, uint8_t iface, uint8_t entity, uint8_t req,
-                   uint16_t wValue, uint16_t length)
+bool audio_control_cb(USBDriver *usbp, uint8_t iface, uint8_t entity, uint8_t req,
+                      uint16_t wValue, uint16_t length)
 {
-  /* Only requests to audio control iface are supported */
+  // Only requests to audio control iface are supported.
   if (iface == AUDIO_CONTROL_INTERFACE)
   {
     /* Feature unit */
     if (entity == AUDIO_FUNCTION_UNIT_ID)
     {
-      return audio_volume_control(usbp, req, (wValue >> 8) & 0xFF,
-                                  wValue & 0xFF, length);
+      return audio_handle_request_cb(usbp, req, (wValue >> 8) & 0xFF,
+                                     wValue & 0xFF, length);
     }
   }
   return false;
@@ -465,30 +528,26 @@ bool audio_control(USBDriver *usbp, uint8_t iface, uint8_t entity, uint8_t req,
  */
 void start_playback_cb(USBDriver *usbp)
 {
-  if (!audio.b_playback_enabled)
+  struct audio_playback *p_playback = &g_audio_context.playback;
+
+  if (!p_playback->b_enabled)
   {
-    audio.b_playback_enabled = true;
-    audio.b_output_enabled = false;
-    audio.buffer_error_count = 0;
-    dac_buffer_wr_addr = AUDIO_PACKET_SIZE / 2;
+    audio_init_playback(p_playback);
+    audio_toggle_playback(p_playback);
 
     // Distribute event, and prepare USB audio data reception, and feedback endpoint transmission.
     chSysLockFromISR();
-    chEvtBroadcastFlagsI(&audio.audio_events, AUDIO_EVENT_PLAYBACK);
+    chEvtBroadcastFlagsI(&g_audio_context.audio_events, AUDIO_EVENT_PLAYBACK);
 
     // Feedback yet unknown, transmit empty packet.
     usbStartTransmitI(usbp, AUDIO_FEEDBACK_ENDPOINT, NULL, 0);
 
     // Initial audio data reception.
-    usbStartReceiveI(usbp, AUDIO_PLAYBACK_ENDPOINT, (uint8_t *)&dac_buffer[dac_buffer_wr_addr], AUDIO_MAX_PACKET_SIZE);
+    usbStartReceiveI(usbp, AUDIO_PLAYBACK_ENDPOINT, (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
 
     chSysUnlockFromISR();
   }
 }
-
-/*
- * Stops playback, and notifies control thread.
- */
 
 /**
  * @brief The stop-playback callback.
@@ -500,21 +559,25 @@ void start_playback_cb(USBDriver *usbp)
 void stop_playback_cb(USBDriver *usbp)
 {
   (void)usbp;
+  struct audio_playback *p_playback = &g_audio_context.playback;
 
-  if (audio.b_playback_enabled)
+  if (p_playback->b_enabled)
   {
-    audio.b_playback_enabled = false;
-    audio.b_output_enabled = false;
+    audio_toggle_playback(p_playback);
 
     // Distribute event.
     chSysLockFromISR();
-    chEvtBroadcastFlagsI(&audio.audio_events, AUDIO_EVENT_PLAYBACK);
+    chEvtBroadcastFlagsI(&g_audio_context.audio_events, AUDIO_EVENT_PLAYBACK);
     chSysUnlockFromISR();
   }
 }
 
-/*
- * Handles SETUP requests.
+/**
+ * @brief Handles setup requests.
+ *
+ * @param usbp A pointer to the USB driver structure.
+ * @return true if a setup request could be handled.
+ * @return false if a setup request could not be handled.
  */
 bool audio_requests_hook(USBDriver *usbp)
 {
@@ -545,9 +608,9 @@ bool audio_requests_hook(USBDriver *usbp)
     switch (usbp->setup[0] & USB_RTYPE_RECIPIENT_MASK)
     {
     case USB_RTYPE_RECIPIENT_INTERFACE:
-      return audio_control(usbp, usbp->setup[4], usbp->setup[5], usbp->setup[1],
-                           (usbp->setup[3] << 8) | (usbp->setup[2]),
-                           (usbp->setup[7] << 8) | (usbp->setup[6]));
+      return audio_control_cb(usbp, usbp->setup[4], usbp->setup[5], usbp->setup[1],
+                              (usbp->setup[3] << 8) | (usbp->setup[2]),
+                              (usbp->setup[7] << 8) | (usbp->setup[6]));
     case USB_RTYPE_RECIPIENT_ENDPOINT:
     default:
       return false;
@@ -556,13 +619,16 @@ bool audio_requests_hook(USBDriver *usbp)
   return false;
 }
 
-/*
- * Handles the USB driver global events.
+/**
+ * @brief Handles global events that the USB driver triggers.
+ *
+ * @param usbp A pointer to the USB driver structure.
+ * @param event The event that was triggered.
  */
 static void usb_event(USBDriver *usbp, usbevent_t event)
 {
   chSysLockFromISR();
-  chEvtBroadcastFlagsI(&audio.audio_events, AUDIO_EVENT_USB_STATE);
+  chEvtBroadcastFlagsI(&g_audio_context.audio_events, AUDIO_EVENT_USB_STATE);
   chSysUnlockFromISR();
 
   switch (event)
@@ -577,8 +643,8 @@ static void usb_event(USBDriver *usbp, usbevent_t event)
     /* Enables the endpoints specified into the configuration.
        Note, this callback is invoked from an ISR so I-Class functions
        must be used.*/
-    usbInitEndpointI(usbp, AUDIO_PLAYBACK_ENDPOINT, &ep1config);
-    usbInitEndpointI(usbp, AUDIO_FEEDBACK_ENDPOINT, &ep2config);
+    usbInitEndpointI(usbp, AUDIO_PLAYBACK_ENDPOINT, &endpoint1_config);
+    usbInitEndpointI(usbp, AUDIO_FEEDBACK_ENDPOINT, &endpoint2_config);
     chSysUnlockFromISR();
     return;
   case USB_EVENT_SUSPEND:
@@ -593,43 +659,10 @@ static void usb_event(USBDriver *usbp, usbevent_t event)
   return;
 }
 
-/*
- * USB driver configuration.
- */
-static const USBConfig usbcfg = {
-    usb_event,
-    get_descriptor,
-    audio_requests_hook,
-    NULL,
-};
-
-/*
- * Initial init.
- */
-void audioObjectInit(audio_state_t *ap)
-{
-  chEvtObjectInit(&ap->audio_events);
-
-  ap->config = NULL;
-  ap->mute[0] = 0;
-  ap->mute[1] = 0;
-  ap->b_playback_enabled = false;
-  ap->b_sof_feedback_valid = false;
-  ap->buffer_error_count = 0;
-  ap->volume[0] = 0;
-  ap->volume[1] = 0;
-}
-
-/*
- * Startup.
- */
-void audioStart(audio_state_t *ap, const audio_config_t *cp)
-{
-  ap->config = cp;
-}
-
-/*
- * Application entry point.
+/**
+ * @brief Application entry point.
+ *
+ * @return int The return code.
  */
 int main(void)
 {
@@ -676,14 +709,13 @@ int main(void)
 
   i2cStop(&I2CD1);
 
-  audioObjectInit(&audio);
-  audioStart(&audio, &audiocfg);
+  audio_init_context(&g_audio_context, &USB_DRIVER, &I2S_DRIVER);
 
   /*
    * Registers this thread for audio events.
    */
   static event_listener_t listener;
-  chEvtRegisterMask(&audio.audio_events, &listener, AUDIO_EVENT);
+  chEvtRegisterMask(&g_audio_context.audio_events, &listener, AUDIO_EVENT);
 
   /*
    * Enables TIM2
@@ -695,10 +727,10 @@ int main(void)
    * Note, a delay is inserted in order to not have to disconnect the cable
    * after a reset.
    */
-  usbDisconnectBus(&USBD1);
+  usbDisconnectBus(&USB_DRIVER);
   chThdSleepMilliseconds(1500);
-  usbStart(&USBD1, &usbcfg);
-  usbConnectBus(&USBD1);
+  usbStart(&USB_DRIVER, &usbcfg);
+  usbConnectBus(&USB_DRIVER);
 
   /*
    * Normal main() thread activity, in this demo it controls external DAC
@@ -716,7 +748,6 @@ int main(void)
      */
     if (evt & AUDIO_EVENT_USB_STATE)
     {
-      volatile uint32_t s = USBD1.state;
     }
 
     /*
@@ -726,16 +757,17 @@ int main(void)
      */
     if (evt & AUDIO_EVENT_PLAYBACK)
     {
-      if (audio.b_playback_enabled)
+      if (g_audio_context.playback.b_enabled)
       {
-        i2sStart(&I2SD3, &i2scfg);
-        start_sof_capture();
+        audio_init_feedback(&g_audio_context.feedback);
+        i2sStart(&I2S_DRIVER, &i2s_config);
+        audio_start_sof_capture();
       }
       else
       {
-        stop_sof_capture();
-        i2sStopExchange(&I2SD3);
-        i2sStop(&I2SD3);
+        audio_stop_sof_capture();
+        i2sStopExchange(&I2S_DRIVER);
+        i2sStop(&I2S_DRIVER);
       }
     }
 

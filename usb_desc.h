@@ -132,14 +132,14 @@ static const uint8_t audio_configuration_descriptor_data[122] = {
     USB_DESC_BYTE(0x00),                /* bDelay (none).                   */
     USB_DESC_WORD(0x0001),              /* wFormatTag (PCM format).         */
     /* Class-Specific AS Format Type Descriptor (UAC 4.5.3) */
-    USB_DESC_BYTE(11),               /* bLength.                         */
-    USB_DESC_BYTE(0x24),             /* bDescriptorType (CS_INTERFACE).  */
-    USB_DESC_BYTE(0x02),             /* bDescriptorSubtype (Format).     */
-    USB_DESC_BYTE(0x01),             /* bFormatType (Type I).            */
-    USB_DESC_BYTE(0x02),             /* bNrChannels (2).                 */
-    USB_DESC_BYTE(0x02),             /* bSubFrameSize (2).               */
-    USB_DESC_BYTE(AUDIO_RESOLUTION), /* bBitResolution.              */
-    USB_DESC_BYTE(0x01),             /* bSamFreqType (Type I).           */
+    USB_DESC_BYTE(11),                   /* bLength.                         */
+    USB_DESC_BYTE(0x24),                 /* bDescriptorType (CS_INTERFACE).  */
+    USB_DESC_BYTE(0x02),                 /* bDescriptorSubtype (Format).     */
+    USB_DESC_BYTE(0x01),                 /* bFormatType (Type I).            */
+    USB_DESC_BYTE(0x02),                 /* bNrChannels (2).                 */
+    USB_DESC_BYTE(0x02),                 /* bSubFrameSize (2).               */
+    USB_DESC_BYTE(AUDIO_RESOLUTION_BIT), /* bBitResolution.              */
+    USB_DESC_BYTE(0x01),                 /* bSamFreqType (Type I).           */
     USB_DESC_BYTE(AUDIO_SAMPLING_FREQUENCY & 0xFF),
     USB_DESC_BYTE((AUDIO_SAMPLING_FREQUENCY >> 8) & 0xFF),
     USB_DESC_BYTE((AUDIO_SAMPLING_FREQUENCY >> 16) & 0xFF),
