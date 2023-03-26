@@ -48,12 +48,13 @@
  */
 #define AUDIO_SAMPLING_FREQUENCY 48000U
 #define AUDIO_RESOLUTION 16U
-#define AUDIO_CHANNELS 2U
+#define AUDIO_CHANNEL_COUNT 2U
 #define AUDIO_SAMPLES_PER_FRAME (AUDIO_SAMPLING_FREQUENCY / 1000)
-#define AUDIO_PACKET_SIZE (AUDIO_SAMPLES_PER_FRAME * AUDIO_CHANNELS * AUDIO_RESOLUTION / 8)
+#define AUDIO_PACKET_SIZE (AUDIO_SAMPLES_PER_FRAME * AUDIO_CHANNEL_COUNT * AUDIO_RESOLUTION / 8)
 /* Because of samplerate feedback host can send more samples per frame */
+#define AUDIO_BUFFER_LENGTH (5u)
 #define AUDIO_MAX_PACKET_SIZE (AUDIO_PACKET_SIZE + 4)
-#define AUDIO_BUFFER_SIZE (AUDIO_SAMPLES_PER_FRAME * AUDIO_CHANNELS * 4)
+#define AUDIO_BUFFER_SAMPLE_COUNT (AUDIO_SAMPLES_PER_FRAME * AUDIO_CHANNEL_COUNT * AUDIO_BUFFER_LENGTH)
 
 /*
  * USB Audio Class parameters
@@ -86,12 +87,15 @@ typedef struct
   event_source_t audio_events;
 
   /* Audio playback occurs */
-  bool playback;
+  bool b_playback_enabled;
+
+  bool b_output_enabled;
+
   /* Samplerate feedback valid */
-  bool sof_feedback_valid;
+  bool b_sof_feedback_valid;
 
   /* Buffer underflows/overflows */
-  int buffer_errors;
+  int buffer_error_count;
 
   /* Channel mute states */
   bool mute[2];

@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "tas2780.h": "c"
+        "tas2780.h": "c",
+        "chprintf.h": "c"
     }
 }
