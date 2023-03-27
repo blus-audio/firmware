@@ -44,7 +44,7 @@
  * @details Larger numbers allow more tolerance for changes in provided sample rate,
  * but lead to more latency.
  */
-#define AUDIO_BUFFER_PACKET_COUNT 8u
+#define AUDIO_BUFFER_PACKET_COUNT 4u
 
 // The values below are calculated from those above, or constant. Changes should not be required.
 //
@@ -101,7 +101,7 @@
  * @note This should never happen, if the host adheres to the provided feedback, and does not
  * drop packets, or sends excessive amounts of data.
  */
-#define AUDIO_BUFFER_FILL_LEVEL_MARGIN (2u * AUDIO_PACKET_SIZE)
+#define AUDIO_BUFFER_FILL_LEVEL_MARGIN (AUDIO_PACKET_SIZE)
 
 /**
  * @brief The lower boundary for the buffer fill level in samples.
@@ -129,11 +129,7 @@
 #error "The maximum audio packet size should be larger than the regular packet size."
 #endif
 
-#if AUDIO_BUFFER_MIN_FILL_LEVEL <= 0
-#error "Inconsistent settings, sample count tolerance likely too large."
-#endif
-
-#if AUDIO_BUFFER_MAX_FILL_LEVEL >= AUDIO_BUFFER_SAMPLE_COUNT
+#if AUDIO_BUFFER_MIN_FILL_LEVEL >= AUDIO_BUFFER_MAX_FILL_LEVEL
 #error "Inconsistent settings, sample count tolerance likely too large."
 #endif
 
