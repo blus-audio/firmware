@@ -19,16 +19,14 @@
  */
 #define USB_DESC_TERMINAL_TYPE 0x0301
 
-// USB Device Descriptor (UAC 4.1)
-// See https://github.com/obdev/v-usb/blob/master/usbdrv/USB-IDs-for-free.txt
 static const uint8_t audio_device_descriptor_data[18] = {
     USB_DESC_DEVICE(0x0110, // bcdUSB (1.1).
                     0x00,   // bDeviceClass (None).
                     0x00,   // bDeviceSubClass.
                     0x00,   // bDeviceProtocol.
                     0x40,   // bMaxPacketSize.
-                    0x16c0, // idVendor.
-                    0x27e0, // idProduct.
+                    0x1209, // idVendor.
+                    0x0001, // idProduct.
                     0x0001, // bcdDevice.
                     1,      // iManufacturer.
                     2,      // iProduct.
