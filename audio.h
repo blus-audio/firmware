@@ -49,15 +49,25 @@
 #define AUDIO_BIT_PER_BYTE 8U
 #define AUDIO_SAMPLING_FREQUENCY 48000U
 #define AUDIO_RESOLUTION_BIT 16U
-#define AUDIO_SAMPLE_SIZE (AUDIO_RESOLUTION_BIT / AUDIO_BIT_PER_BYTE)
 #define AUDIO_CHANNEL_COUNT 2U
+
 #define AUDIO_SAMPLES_PER_FRAME (AUDIO_SAMPLING_FREQUENCY / 1000)
-#define AUDIO_PACKET_SIZE (AUDIO_SAMPLES_PER_FRAME * AUDIO_CHANNEL_COUNT * AUDIO_RESOLUTION_BIT / AUDIO_BIT_PER_BYTE)
-/* Because of samplerate feedback host can send more samples per frame */
-#define AUDIO_BUFFER_LENGTH 4u
-#define AUDIO_MAX_PACKET_SIZE (AUDIO_PACKET_SIZE + 4)
-#define AUDIO_BUFFER_SAMPLE_COUNT (AUDIO_SAMPLES_PER_FRAME * AUDIO_CHANNEL_COUNT * AUDIO_BUFFER_LENGTH)
+#define AUDIO_SAMPLE_SIZE (AUDIO_RESOLUTION_BIT / AUDIO_BIT_PER_BYTE)
+#define AUDIO_PACKET_SIZE (AUDIO_SAMPLES_PER_FRAME * AUDIO_CHANNEL_COUNT * AUDIO_SAMPLE_SIZE)
+#define AUDIO_MAX_PACKET_SIZE (2 * AUDIO_PACKET_SIZE)
+
+#define AUDIO_BUFFER_PACKET_COUNT 4u
+#define AUDIO_BUFFER_SAMPLE_COUNT (AUDIO_PACKET_SIZE * AUDIO_BUFFER_PACKET_COUNT)
 #define AUDIO_FEEDBACK_BUFFER_SIZE 3u
+
+// The preferred buffer fill level is half full.
+#define AUDIO_BUFFER_TARGET_SAMPLE_COUNT (AUDIO_BUFFER_SAMPLE_COUNT / 2u)
+
+// Force the buffer fill level back to the target, when it leaves the tolerance region.
+#define AUDIO_BUFFER_SAMPLE_COUNT_TOLERANCE (AUDIO_BUFFER_SAMPLE_COUNT / 4u)
+#define AUDIO_BUFFER_MIN_SAMPLE_COUNT (AUDIO_BUFFER_TARGET_SAMPLE_COUNT - AUDIO_BUFFER_SAMPLE_COUNT_TOLERANCE)
+#define AUDIO_BUFFER_MAX_SAMPLE_COUNT (AUDIO_BUFFER_TARGET_SAMPLE_COUNT + AUDIO_BUFFER_SAMPLE_COUNT_TOLERANCE)
+#define AUDIO_FEEDBACK_CORRECTION_OFFSET (16u) // Indicates an error of around 1 Hz
 
 /*
  * USB Audio Class parameters
@@ -89,7 +99,7 @@ struct audio_feedback
 
 struct audio_playback
 {
-  uint16_t buffer[AUDIO_BUFFER_SAMPLE_COUNT + AUDIO_MAX_PACKET_SIZE];
+  uint16_t buffer[AUDIO_BUFFER_SAMPLE_COUNT + AUDIO_MAX_PACKET_SIZE / AUDIO_SAMPLE_SIZE];
   uint16_t buffer_write_offset;
   bool b_enabled;
   bool b_output_enabled;
@@ -103,15 +113,28 @@ struct audio_control
   int16_t channel_volume_levels[AUDIO_CHANNEL_COUNT]; //<<< Channel volumes in 8.8 format (in dB).
 };
 
+struct audio_diagnostics
+{
+  uint16_t sample_distance;
+  size_t error_count;
+};
+
 struct audio_context
 {
   struct audio_config config;
   struct audio_feedback feedback;
   struct audio_playback playback;
   struct audio_control control;
+  struct audio_diagnostics diagnostics;
 
   event_source_t audio_events;
 };
+
+void audio_init_diagnostics(struct audio_diagnostics *p_diagnostics)
+{
+  p_diagnostics->sample_distance = 0u;
+  p_diagnostics->error_count = 0u;
+}
 
 void audio_init_feedback(struct audio_feedback *p_feedback)
 {
@@ -155,6 +178,7 @@ void audio_init_context(struct audio_context *p_context, USBDriver *p_usb_driver
   audio_init_feedback(&p_context->feedback);
   audio_init_playback(&p_context->playback);
   audio_init_control(&p_context->control);
+  audio_init_diagnostics(&p_context->diagnostics);
 }
 
 #endif // _AUDIO_H_

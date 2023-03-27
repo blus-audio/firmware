@@ -25,10 +25,10 @@
 
 static const USBDescriptor *
 get_descriptor_cb(USBDriver *usbp, uint8_t dtype, uint8_t dindex, uint16_t lang);
-bool audio_requests_hook(USBDriver *usbp);
+bool audio_requests_hook_cb(USBDriver *usbp);
 void audio_received_cb(USBDriver *usbp, usbep_t ep);
 void audio_feedback_cb(USBDriver *usbp, usbep_t ep);
-static void usb_event(USBDriver *usbp, usbevent_t event);
+static void usb_event_cb(USBDriver *usbp, usbevent_t event);
 
 static struct audio_context g_audio_context;
 static BaseSequentialStream *stream = (BaseSequentialStream *)&SD2;
@@ -37,9 +37,9 @@ static BaseSequentialStream *stream = (BaseSequentialStream *)&SD2;
  * @brief Settings structure for the USB driver.
  */
 static const USBConfig usbcfg = {
-    usb_event,
+    usb_event_cb,
     get_descriptor_cb,
-    audio_requests_hook,
+    audio_requests_hook_cb,
     NULL,
 };
 
@@ -102,8 +102,6 @@ static const I2SConfig i2s_config = {
     .end_cb = NULL,
     .i2spr = SPI_I2SPR_MCKOE | (SPI_I2SPR_I2SDIV & 6)};
 
-volatile size_t g_sample_distance = 0;
-
 /**
  * @brief Callback function that returns the requested USB descriptor.
  *
@@ -142,9 +140,9 @@ static THD_FUNCTION(reporting_thread, arg)
 
   while (true)
   {
-    chprintf(stream, "Feedback value: %lu\n", g_audio_context.feedback.value);
-    chprintf(stream, "Audio buffer use: %lu / %lu\n", AUDIO_BUFFER_SAMPLE_COUNT - g_sample_distance, AUDIO_BUFFER_SAMPLE_COUNT);
-    chThdSleepMilliseconds(500);
+    chprintf(stream, "Feedback value: %lu (%lu errors)\n", g_audio_context.feedback.value, g_audio_context.diagnostics.error_count);
+    chprintf(stream, "Audio buffer use: %lu / %lu\n", AUDIO_BUFFER_SAMPLE_COUNT - g_audio_context.diagnostics.sample_distance, AUDIO_BUFFER_SAMPLE_COUNT);
+    chThdSleepMilliseconds(1000);
   }
 }
 
@@ -161,59 +159,86 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
   OSAL_IRQ_PROLOGUE();
 
   struct audio_feedback *p_feedback = &g_audio_context.feedback;
+  struct audio_diagnostics *p_diagnostics = &g_audio_context.diagnostics;
   uint32_t counter_value = TIM2->CNT;
 
   // Reset any timer interrupt flags.
   uint32_t timer_status_register = TIM2->SR;
   TIM2->SR = 0;
 
-  if (timer_status_register & TIM_SR_TIF)
+  if (!(timer_status_register & TIM_SR_TIF))
   {
-    // Trigger interrupt flag was set.
+    // Trigger interrupt flag was not set.
+    OSAL_IRQ_EPILOGUE();
+    return;
+  }
 
-    chSysLockFromISR();
-    if (!(p_feedback->b_is_first_sof))
-    {
-      // Handle timer wrap-around.
-      if (p_feedback->previous_counter_value < counter_value)
-      {
-        p_feedback->timer_count_difference += counter_value - p_feedback->previous_counter_value;
-      }
-      else
-      {
-        p_feedback->timer_count_difference += UINT32_MAX - p_feedback->previous_counter_value + counter_value;
-      }
-
-      // Feedback value is calculated every 64 SOF interrupts => every 64 ms.
-      p_feedback->sof_package_count++;
-      if (p_feedback->sof_package_count == 64)
-      {
-        // Conveniently, the timer count difference at 64 ms count periods matches the required feedback format.
-        // The feedback endpoint requires the device sample rate in kHz in a 10.14 binary (fixpoint) format.
-
-        // - The master clock runs 256 times as fast as the reference clock.
-        // - The conversion of fs / kHz to fs / Hz adds a factor of 1000
-        // - The counting period is 64 ms long.
-        // Thus
-        //   fs / kHz * 2**14 = fs * 256 * 64e-3 s
-        //
-        // where the left side is the expected format, and the right side the result of this counting function.
-        p_feedback->value = p_feedback->timer_count_difference;
-
-        // Translate feedback value to a buffer of three bytes.
-        p_feedback->buffer[0] = p_feedback->value & 0xFF;
-        p_feedback->buffer[1] = (p_feedback->value >> 8) & 0xFF;
-        p_feedback->buffer[2] = (p_feedback->value >> 16) & 0xFF;
-
-        p_feedback->timer_count_difference = 0;
-        p_feedback->sof_package_count = 0;
-        p_feedback->b_is_valid = true;
-      }
-    }
-
+  if (p_feedback->b_is_first_sof)
+  {
+    // On the first SOF signal, the feedback cannot be calculated yet.
+    // Only record the timer state.
     p_feedback->b_is_first_sof = false;
     p_feedback->previous_counter_value = counter_value;
-    chSysUnlockFromISR();
+    OSAL_IRQ_EPILOGUE();
+    return;
+  }
+
+  // Normal playback operation below.
+
+  // Handle timer wrap-around.
+  if (p_feedback->previous_counter_value < counter_value)
+  {
+    p_feedback->timer_count_difference += counter_value - p_feedback->previous_counter_value;
+  }
+  else
+  {
+    p_feedback->timer_count_difference += UINT32_MAX - p_feedback->previous_counter_value + counter_value;
+  }
+  p_feedback->previous_counter_value = counter_value;
+
+  // Feedback value is calculated every 64 SOF interrupts => every 64 ms.
+  p_feedback->sof_package_count++;
+  if (p_feedback->sof_package_count == 64)
+  {
+    // Conveniently, the timer count difference at 64 ms count periods matches the required feedback format.
+    // The feedback endpoint requires the device sample rate in kHz in a 10.14 binary (fixpoint) format.
+
+    // - The master clock runs 256 times as fast as the reference clock.
+    // - The conversion of fs / kHz to fs / Hz adds a factor of 1000
+    // - The counting period is 64 ms long.
+    // Thus
+    //   fs / kHz * 2**14 = fs * 256 * 64e-3 s
+    //
+    // where the left side is the expected format, and the right side the result of this counting function.
+    p_feedback->value = p_feedback->timer_count_difference;
+
+    // If there is too much discrepancy between the target sample buffer fill level, and the
+    // actual fill level, this must be compensated manually.
+    //
+    // The general USB 2.0 specification states (5.12.4.2, p. 75):
+    // "It is possible that the source will deliver one too many or one too few samples over a long period due to errors
+    // or accumulated inaccuracies in measuring Ff. The sink must have sufficient buffer capability to accommodate this.
+    // When the sink recognizes this condition, it should adjust the reported Ff value to correct it.
+    // This may also be necessary to compensate for relative clock drifts.""
+    if (p_diagnostics->sample_distance > AUDIO_BUFFER_MAX_SAMPLE_COUNT)
+    {
+      p_feedback->value -= AUDIO_FEEDBACK_CORRECTION_OFFSET;
+      p_diagnostics->error_count++;
+    }
+    else if (p_diagnostics->sample_distance < AUDIO_BUFFER_MIN_SAMPLE_COUNT)
+    {
+      p_feedback->value += AUDIO_FEEDBACK_CORRECTION_OFFSET;
+      p_diagnostics->error_count++;
+    }
+
+    // Translate the feedback value to a buffer of three bytes.
+    p_feedback->buffer[0] = p_feedback->value & 0xFF;
+    p_feedback->buffer[1] = (p_feedback->value >> 8) & 0xFF;
+    p_feedback->buffer[2] = (p_feedback->value >> 16) & 0xFF;
+
+    p_feedback->timer_count_difference = 0;
+    p_feedback->sof_package_count = 0;
+    p_feedback->b_is_valid = true;
   }
 
   OSAL_IRQ_EPILOGUE();
@@ -224,19 +249,20 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
  */
 void audio_start_sof_capture(void)
 {
-  /* Reset TIM2 */
+  // Reset TIM2 instance.
   rccResetTIM2();
   nvicEnableVector(STM32_TIM2_NUMBER, STM32_IRQ_TIM2_PRIORITY);
 
   chSysLock();
-
-  /* Enable TIM2 counting */
+  // Enable TIM2 counter.
   TIM2->CR1 = TIM_CR1_CEN;
-  /* Timer clock = ETR pin, slave mode, trigger on ITR1 */
+  // - The timer clock source is the ETR pin .
+  // - Enable slave mode.
+  // - Trigger on ITR1 (the SOF signal).
   TIM2->SMCR = TIM_SMCR_ECE | TIM_SMCR_TS_0 | TIM_SMCR_SMS_2 | TIM_SMCR_SMS_1;
-  /* TIM2 enable interrupt */
+  // Enable TIM2 interrupt.
   TIM2->DIER = TIM_DIER_TIE;
-  /* Remap ITR1 to USB_FS SOF signal */
+  // Remap ITR1 to the USB_FS SOF signal.
   TIM2->OR = TIM_OR_ITR1_RMP_1;
   chSysUnlock();
 }
@@ -262,22 +288,24 @@ void audio_stop_sof_capture(void)
  */
 void audio_feedback_cb(USBDriver *usbp, usbep_t ep)
 {
-  if (g_audio_context.playback.b_enabled)
+  if (!g_audio_context.playback.b_enabled)
   {
-    chSysLockFromISR();
-
-    if (g_audio_context.feedback.b_is_valid)
-    {
-      usbStartTransmitI(usbp, ep, g_audio_context.feedback.buffer, AUDIO_FEEDBACK_BUFFER_SIZE);
-    }
-    else
-    {
-      // Transmit an empty packet.
-      usbStartTransmitI(usbp, ep, NULL, 0);
-    }
-
-    chSysUnlockFromISR();
+    return;
   }
+
+  chSysLockFromISR();
+
+  if (g_audio_context.feedback.b_is_valid)
+  {
+    usbStartTransmitI(usbp, ep, g_audio_context.feedback.buffer, AUDIO_FEEDBACK_BUFFER_SIZE);
+  }
+  else
+  {
+    // Transmit an empty packet.
+    usbStartTransmitI(usbp, ep, NULL, 0);
+  }
+
+  chSysUnlockFromISR();
 }
 
 /**
@@ -290,45 +318,48 @@ void audio_received_cb(USBDriver *usbp, usbep_t ep)
 {
   struct audio_playback *p_playback = &g_audio_context.playback;
 
-  if (p_playback->b_enabled)
+  if (!p_playback->b_enabled)
   {
-    uint16_t new_write_offset = p_playback->buffer_write_offset + usbGetReceiveTransactionSizeX(usbp, ep) / AUDIO_SAMPLE_SIZE;
-
-    // Handle buffer wrap-around.
-    if (new_write_offset >= AUDIO_BUFFER_SAMPLE_COUNT)
-    {
-      for (size_t sample_index = AUDIO_BUFFER_SAMPLE_COUNT; sample_index < new_write_offset; sample_index++)
-      {
-        p_playback->buffer[sample_index - AUDIO_BUFFER_SAMPLE_COUNT] = p_playback->buffer[sample_index];
-      }
-      new_write_offset -= AUDIO_BUFFER_SAMPLE_COUNT;
-    }
-
-    p_playback->buffer_write_offset = new_write_offset;
-
-    chSysLockFromISR();
-
-    // Start playback on the I2S device, when the playback buffer is at least half full.
-    if (!p_playback->b_output_enabled && (p_playback->buffer_write_offset >= (AUDIO_BUFFER_SAMPLE_COUNT / 2)))
-    {
-      p_playback->b_output_enabled = true;
-      i2sStartExchangeI(&I2S_DRIVER);
-    }
-    usbStartReceiveI(usbp, ep, (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
-
-    // The current read index of the I2S DMA.
-    size_t read_offset = AUDIO_BUFFER_SAMPLE_COUNT - I2S_DRIVER.dmatx->stream->NDTR;
-    g_sample_distance = 0;
-
-    // Calculate the distance between the DMA read pointer, and the USB driver's write pointer in the playback buffer.
-    if (read_offset > p_playback->buffer_write_offset)
-    {
-      g_sample_distance += AUDIO_BUFFER_SAMPLE_COUNT;
-    }
-    g_sample_distance += (p_playback->buffer_write_offset - read_offset);
-
-    chSysUnlockFromISR();
+    return;
   }
+
+  uint16_t received_sample_count = usbGetReceiveTransactionSizeX(usbp, ep) / AUDIO_SAMPLE_SIZE;
+  uint16_t new_buffer_write_offset = p_playback->buffer_write_offset + received_sample_count;
+
+  // Handle buffer wrap-around.
+  if (new_buffer_write_offset >= AUDIO_BUFFER_SAMPLE_COUNT)
+  {
+    for (size_t sample_index = AUDIO_BUFFER_SAMPLE_COUNT; sample_index < new_buffer_write_offset; sample_index++)
+    {
+      p_playback->buffer[sample_index - AUDIO_BUFFER_SAMPLE_COUNT] = p_playback->buffer[sample_index];
+    }
+    new_buffer_write_offset -= AUDIO_BUFFER_SAMPLE_COUNT;
+  }
+
+  p_playback->buffer_write_offset = new_buffer_write_offset;
+  uint16_t read_offset = (uint16_t)AUDIO_BUFFER_SAMPLE_COUNT - (uint16_t)(I2S_DRIVER.dmatx->stream->NDTR);
+  uint16_t write_offset = g_audio_context.playback.buffer_write_offset;
+
+  // Calculate the distance between the DMA read pointer, and the USB driver's write pointer in the playback buffer.
+  uint16_t sample_distance = 0;
+  if (read_offset > write_offset)
+  {
+    sample_distance += AUDIO_BUFFER_SAMPLE_COUNT;
+  }
+  sample_distance += (write_offset - read_offset);
+  g_audio_context.diagnostics.sample_distance = sample_distance;
+
+  chSysLockFromISR();
+
+  // Start playback on the I2S device, when the playback buffer is at least at the target fill level.
+  if (!p_playback->b_output_enabled && (new_buffer_write_offset >= AUDIO_BUFFER_TARGET_SAMPLE_COUNT))
+  {
+    p_playback->b_output_enabled = true;
+    i2sStartExchangeI(&I2S_DRIVER);
+  }
+  usbStartReceiveI(usbp, ep, (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
+
+  chSysUnlockFromISR();
 }
 
 /**
@@ -579,7 +610,7 @@ void stop_playback_cb(USBDriver *usbp)
  * @return true if a setup request could be handled.
  * @return false if a setup request could not be handled.
  */
-bool audio_requests_hook(USBDriver *usbp)
+bool audio_requests_hook_cb(USBDriver *usbp)
 {
   if ((usbp->setup[0] & (USB_RTYPE_TYPE_MASK | USB_RTYPE_RECIPIENT_MASK)) ==
       (USB_RTYPE_TYPE_STD | USB_RTYPE_RECIPIENT_INTERFACE))
@@ -625,7 +656,7 @@ bool audio_requests_hook(USBDriver *usbp)
  * @param usbp A pointer to the USB driver structure.
  * @param event The event that was triggered.
  */
-static void usb_event(USBDriver *usbp, usbevent_t event)
+static void usb_event_cb(USBDriver *usbp, usbevent_t event)
 {
   chSysLockFromISR();
   chEvtBroadcastFlagsI(&g_audio_context.audio_events, AUDIO_EVENT_USB_STATE);
@@ -639,10 +670,8 @@ static void usb_event(USBDriver *usbp, usbevent_t event)
   case USB_EVENT_ADDRESS:
     return;
   case USB_EVENT_CONFIGURED:
+    // Enables configured endpoints.
     chSysLockFromISR();
-    /* Enables the endpoints specified into the configuration.
-       Note, this callback is invoked from an ISR so I-Class functions
-       must be used.*/
     usbInitEndpointI(usbp, AUDIO_PLAYBACK_ENDPOINT, &endpoint1_config);
     usbInitEndpointI(usbp, AUDIO_FEEDBACK_ENDPOINT, &endpoint2_config);
     chSysUnlockFromISR();
@@ -678,14 +707,11 @@ int main(void)
 
   chThdCreateStatic(wa_reporting_thread, sizeof(wa_reporting_thread), NORMALPRIO, reporting_thread, NULL);
 
-  i2cStart(&I2CD1, &tas2780_i2c_config);
-
   struct tas2780_context tas2780_a_context =
       {
           .channel = TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT,
           .device_address = TAS2780_DEVICE_ADDRESS_A,
       };
-
   struct tas2780_context tas2780_b_context =
       {
           .channel = TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT,
@@ -702,6 +728,8 @@ int main(void)
           .device_address = TAS2780_DEVICE_ADDRESS_D,
       };
 
+  i2cStart(&I2CD1, &tas2780_i2c_config);
+
   tas_2780_setup(&tas2780_a_context);
   tas_2780_setup(&tas2780_b_context);
   tas_2780_setup(&tas2780_c_context);
@@ -711,56 +739,34 @@ int main(void)
 
   audio_init_context(&g_audio_context, &USB_DRIVER, &I2S_DRIVER);
 
-  /*
-   * Registers this thread for audio events.
-   */
-  static event_listener_t listener;
-  chEvtRegisterMask(&g_audio_context.audio_events, &listener, AUDIO_EVENT);
+  // Registers this thread for audio events.
+  static event_listener_t audio_event_listener;
+  chEvtRegisterMask(&g_audio_context.audio_events, &audio_event_listener, AUDIO_EVENT);
 
-  /*
-   * Enables TIM2
-   */
+  // Activate timer TIM2, as a feedback counter.
   rccEnableTIM2(FALSE);
 
-  /*
-   * Activates the USB driver and then the USB bus pull-up on D+.
-   * Note, a delay is inserted in order to not have to disconnect the cable
-   * after a reset.
-   */
+  // Activate USB connectivity.
   usbDisconnectBus(&USB_DRIVER);
-  chThdSleepMilliseconds(1500);
   usbStart(&USB_DRIVER, &usbcfg);
   usbConnectBus(&USB_DRIVER);
 
-  /*
-   * Normal main() thread activity, in this demo it controls external DAC
-   */
-  for (;;)
+  while (true)
   {
-    /*
-     * Wait for audio event.
-     */
+    // Wait for an audio event.
     chEvtWaitOne(AUDIO_EVENT);
-    eventflags_t evt = chEvtGetAndClearFlags(&listener);
+    eventflags_t event_flags = chEvtGetAndClearFlags(&audio_event_listener);
 
-    /*
-     * USB state cahanged, switch LED3.
-     */
-    if (evt & AUDIO_EVENT_USB_STATE)
+    if (event_flags & AUDIO_EVENT_USB_STATE)
     {
     }
 
-    /*
-     * Audio playback started (stopped).
-     * Enable (Disable) external DAC and I2S bus.
-     * Enable (Disable) SOF capture.
-     */
-    if (evt & AUDIO_EVENT_PLAYBACK)
+    if (event_flags & AUDIO_EVENT_PLAYBACK)
     {
       if (g_audio_context.playback.b_enabled)
       {
-        audio_init_feedback(&g_audio_context.feedback);
         i2sStart(&I2S_DRIVER, &i2s_config);
+        audio_init_feedback(&g_audio_context.feedback);
         audio_start_sof_capture();
       }
       else
@@ -771,19 +777,12 @@ int main(void)
       }
     }
 
-    /*
-     * Set mute request received.
-     */
-    if (evt & AUDIO_EVENT_MUTE)
+    if (event_flags & AUDIO_EVENT_MUTE)
     {
     }
 
-    /*
-     * Set volume request received.
-     */
-    if (evt & AUDIO_EVENT_VOLUME)
+    if (event_flags & AUDIO_EVENT_VOLUME)
     {
-      // audio_dac_update_volume(&audio);
     }
   }
 }
