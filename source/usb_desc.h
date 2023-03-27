@@ -15,24 +15,20 @@
 #define USB_DESC_FEEDBACK_PERIOD 0x06 // 2^6 ms = 64 ms
 
 /**
- * @brief An isochronous endpoint.
- */
-#define USB_DESC_EP_TYPE_ISOC 0x01
-
-/**
  * @brief Terminal type: Loudspeaker.
  */
 #define USB_DESC_TERMINAL_TYPE 0x0301
 
 // USB Device Descriptor (UAC 4.1)
+// See https://github.com/obdev/v-usb/blob/master/usbdrv/USB-IDs-for-free.txt
 static const uint8_t audio_device_descriptor_data[18] = {
     USB_DESC_DEVICE(0x0110, // bcdUSB (1.1).
                     0x00,   // bDeviceClass (None).
                     0x00,   // bDeviceSubClass.
                     0x00,   // bDeviceProtocol.
                     0x40,   // bMaxPacketSize.
-                    0x0483, // idVendor (ST).
-                    0x5740, // idProduct.
+                    0x16c0, // idVendor.
+                    0x27e0, // idProduct.
                     0x0001, // bcdDevice.
                     1,      // iManufacturer.
                     2,      // iProduct.
@@ -156,7 +152,7 @@ static const uint8_t audio_configuration_descriptor_data[122] = {
     USB_DESC_BYTE(9),                              // bLength (9).
     USB_DESC_BYTE(0x05),                           // bDescriptorType (Endpoint).
     USB_DESC_BYTE(AUDIO_FEEDBACK_ENDPOINT | 0x80), // bEndpointAddress.
-    USB_DESC_BYTE(USB_DESC_EP_TYPE_ISOC),          // bmAttributes.
+    USB_DESC_BYTE(USB_EP_MODE_TYPE_ISOC),          // bmAttributes.
     USB_DESC_WORD(AUDIO_FEEDBACK_BUFFER_SIZE),     // wMaxPacketSize
     USB_DESC_BYTE(USB_DESC_FS_BINTERVAL),          // bInterval (1 ms).
     USB_DESC_BYTE(USB_DESC_FEEDBACK_PERIOD),       // bRefresh.

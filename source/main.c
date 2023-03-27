@@ -9,16 +9,19 @@
 #define I2S_DRIVER (I2SD3)
 #define USB_DRIVER (USBD1)
 
-// Declarations.
+// Declarations and definitions.
 static const USBDescriptor *
 get_descriptor_cb(USBDriver *usbp, uint8_t dtype, uint8_t dindex, uint16_t lang);
+
 bool audio_requests_hook_cb(USBDriver *usbp);
 void audio_received_cb(USBDriver *usbp, usbep_t ep);
 void audio_feedback_cb(USBDriver *usbp, usbep_t ep);
+
 static void usb_event_cb(USBDriver *usbp, usbevent_t event);
 
 static struct audio_context g_audio_context;
 static BaseSequentialStream *stream = (BaseSequentialStream *)&SD2;
+static THD_WORKING_AREA(wa_reporting_thread, 128);
 
 /**
  * @brief Settings structure for the USB driver.
@@ -118,7 +121,9 @@ get_descriptor_cb(USBDriver *usbp, uint8_t dtype, uint8_t dindex, uint16_t lang)
   return NULL;
 }
 
-static THD_WORKING_AREA(wa_reporting_thread, 128);
+/**
+ * @brief A reporting thread that outputs status information via UART.
+ */
 static THD_FUNCTION(reporting_thread, arg)
 {
   (void)arg;
@@ -128,9 +133,10 @@ static THD_FUNCTION(reporting_thread, arg)
 
   while (true)
   {
-    chprintf(stream, "Volume: %li/%li dB\n", (g_audio_context.control.channel_volume_levels[0] >> 8), (g_audio_context.control.channel_volume_levels[1] >> 8));
+    chprintf(stream, "\n");
+    chprintf(stream, "Volume: %li / %li dB\n", (g_audio_context.control.channel_volume_levels[0] >> 8), (g_audio_context.control.channel_volume_levels[1] >> 8));
     chprintf(stream, "Feedback value: %lu (%lu errors)\n", g_audio_context.feedback.value, g_audio_context.diagnostics.error_count);
-    chprintf(stream, "Audio buffer use: %lu / %lu (min. %lu, max. %lu)\n", AUDIO_BUFFER_SAMPLE_COUNT - g_audio_context.diagnostics.sample_distance, AUDIO_BUFFER_SAMPLE_COUNT, AUDIO_BUFFER_MIN_FILL_LEVEL, AUDIO_BUFFER_MAX_FILL_LEVEL);
+    chprintf(stream, "Audio buffer use: %lu / %lu (margins %lu / %lu)\n", AUDIO_BUFFER_SAMPLE_COUNT - g_audio_context.diagnostics.sample_distance, AUDIO_BUFFER_SAMPLE_COUNT, AUDIO_BUFFER_MIN_FILL_LEVEL, AUDIO_BUFFER_MAX_FILL_LEVEL);
     chThdSleepMilliseconds(1000);
   }
 }
