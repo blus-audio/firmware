@@ -1,18 +1,3 @@
-/*
-    ChibiOS - Copyright (C) 2006..2015 Giovanni Di Sirio
-
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
-
-        http://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
-*/
 #include <string.h>
 #include "hal.h"
 #include "audio.h"
@@ -20,9 +5,11 @@
 #include "tas2780.h"
 #include "chprintf.h"
 
+// Driver shorthands.
 #define I2S_DRIVER (I2SD3)
 #define USB_DRIVER (USBD1)
 
+// Declarations.
 static const USBDescriptor *
 get_descriptor_cb(USBDriver *usbp, uint8_t dtype, uint8_t dindex, uint16_t lang);
 bool audio_requests_hook_cb(USBDriver *usbp);
@@ -114,15 +101,16 @@ static const I2SConfig i2s_config = {
 static const USBDescriptor *
 get_descriptor_cb(USBDriver *usbp, uint8_t dtype, uint8_t dindex, uint16_t lang)
 {
-
   (void)usbp;
   (void)lang;
   switch (dtype)
   {
   case USB_DESCRIPTOR_DEVICE:
     return &audio_device_descriptor;
+
   case USB_DESCRIPTOR_CONFIGURATION:
     return &audio_configuration_descriptor;
+
   case USB_DESCRIPTOR_STRING:
     if (dindex < 4)
       return &audio_strings[dindex];
@@ -140,8 +128,9 @@ static THD_FUNCTION(reporting_thread, arg)
 
   while (true)
   {
+    chprintf(stream, "Volume: %li/%li dB\n", (g_audio_context.control.channel_volume_levels[0] >> 8), (g_audio_context.control.channel_volume_levels[1] >> 8));
     chprintf(stream, "Feedback value: %lu (%lu errors)\n", g_audio_context.feedback.value, g_audio_context.diagnostics.error_count);
-    chprintf(stream, "Audio buffer use: %lu / %lu\n", AUDIO_BUFFER_SAMPLE_COUNT - g_audio_context.diagnostics.sample_distance, AUDIO_BUFFER_SAMPLE_COUNT);
+    chprintf(stream, "Audio buffer use: %lu / %lu (min. %lu, max. %lu)\n", AUDIO_BUFFER_SAMPLE_COUNT - g_audio_context.diagnostics.sample_distance, AUDIO_BUFFER_SAMPLE_COUNT, AUDIO_BUFFER_MIN_FILL_LEVEL, AUDIO_BUFFER_MAX_FILL_LEVEL);
     chThdSleepMilliseconds(1000);
   }
 }
@@ -160,6 +149,7 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
 
   struct audio_feedback *p_feedback = &g_audio_context.feedback;
   struct audio_diagnostics *p_diagnostics = &g_audio_context.diagnostics;
+  struct audio_playback *p_playback = &g_audio_context.playback;
   uint32_t counter_value = TIM2->CNT;
 
   // Reset any timer interrupt flags.
@@ -169,6 +159,15 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
   if (!(timer_status_register & TIM_SR_TIF))
   {
     // Trigger interrupt flag was not set.
+    OSAL_IRQ_EPILOGUE();
+    return;
+  }
+
+  if (!p_playback->b_output_enabled)
+  {
+    // Start measurement and reporting after having reached the target buffer fill level.
+    // This ensures that the target buffer fill level is reached exactly -
+    // until this point, the USB packets all have nominal size.
     OSAL_IRQ_EPILOGUE();
     return;
   }
@@ -183,23 +182,23 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
     return;
   }
 
-  // Normal playback operation below.
-
-  // Handle timer wrap-around.
-  if (p_feedback->previous_counter_value < counter_value)
-  {
-    p_feedback->timer_count_difference += counter_value - p_feedback->previous_counter_value;
-  }
-  else
-  {
-    p_feedback->timer_count_difference += UINT32_MAX - p_feedback->previous_counter_value + counter_value;
-  }
-  p_feedback->previous_counter_value = counter_value;
+  // Normal playback operation.
 
   // Feedback value is calculated every 64 SOF interrupts => every 64 ms.
   p_feedback->sof_package_count++;
   if (p_feedback->sof_package_count == 64)
   {
+    // Handle timer wrap-around.
+    if (p_feedback->previous_counter_value < counter_value)
+    {
+      p_feedback->timer_count_difference += counter_value - p_feedback->previous_counter_value;
+    }
+    else
+    {
+      p_feedback->timer_count_difference += UINT32_MAX - p_feedback->previous_counter_value + counter_value;
+    }
+    p_feedback->previous_counter_value = counter_value;
+
     // Conveniently, the timer count difference at 64 ms count periods matches the required feedback format.
     // The feedback endpoint requires the device sample rate in kHz in a 10.14 binary (fixpoint) format.
 
@@ -220,12 +219,12 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
     // or accumulated inaccuracies in measuring Ff. The sink must have sufficient buffer capability to accommodate this.
     // When the sink recognizes this condition, it should adjust the reported Ff value to correct it.
     // This may also be necessary to compensate for relative clock drifts.""
-    if (p_diagnostics->sample_distance > AUDIO_BUFFER_MAX_SAMPLE_COUNT)
+    if (p_diagnostics->sample_distance > AUDIO_BUFFER_MAX_FILL_LEVEL)
     {
       p_feedback->value -= AUDIO_FEEDBACK_CORRECTION_OFFSET;
       p_diagnostics->error_count++;
     }
-    else if (p_diagnostics->sample_distance < AUDIO_BUFFER_MIN_SAMPLE_COUNT)
+    else if (p_diagnostics->sample_distance < AUDIO_BUFFER_MIN_FILL_LEVEL)
     {
       p_feedback->value += AUDIO_FEEDBACK_CORRECTION_OFFSET;
       p_diagnostics->error_count++;
@@ -352,7 +351,7 @@ void audio_received_cb(USBDriver *usbp, usbep_t ep)
   chSysLockFromISR();
 
   // Start playback on the I2S device, when the playback buffer is at least at the target fill level.
-  if (!p_playback->b_output_enabled && (new_buffer_write_offset >= AUDIO_BUFFER_TARGET_SAMPLE_COUNT))
+  if (!p_playback->b_output_enabled && (new_buffer_write_offset >= AUDIO_BUFFER_TARGET_FILL_LEVEL))
   {
     p_playback->b_output_enabled = true;
     i2sStartExchangeI(&I2S_DRIVER);
@@ -440,7 +439,7 @@ bool audio_handle_request_cb(USBDriver *usbp, uint8_t req, uint8_t ctrl,
   case UAC_REQ_GET_MAX:
     if (ctrl == UAC_FU_VOLUME_CONTROL)
     {
-      for (int i = 0; i < length; i++)
+      for (size_t i = 0; i < length; i++)
         ((int16_t *)p_control->buffer)[i] = 0;
       usbSetupTransfer(usbp, p_control->buffer, length, NULL);
       return true;
@@ -450,8 +449,8 @@ bool audio_handle_request_cb(USBDriver *usbp, uint8_t req, uint8_t ctrl,
   case UAC_REQ_GET_MIN:
     if (ctrl == UAC_FU_VOLUME_CONTROL)
     {
-      for (int i = 0; i < length; i++)
-        ((int16_t *)p_control->buffer)[i] = -96 * 256;
+      for (size_t i = 0; i < length; i++)
+        ((int16_t *)p_control->buffer)[i] = -100 * 256;
       usbSetupTransfer(usbp, p_control->buffer, length, NULL);
       return true;
     }
@@ -460,7 +459,7 @@ bool audio_handle_request_cb(USBDriver *usbp, uint8_t req, uint8_t ctrl,
   case UAC_REQ_GET_RES:
     if (ctrl == UAC_FU_VOLUME_CONTROL)
     {
-      for (int i = 0; i < length; i++)
+      for (size_t i = 0; i < length; i++)
         ((int16_t *)p_control->buffer)[i] = 128;
       usbSetupTransfer(usbp, p_control->buffer, length, NULL);
       return true;
@@ -695,65 +694,34 @@ static void usb_event_cb(USBDriver *usbp, usbevent_t event)
  */
 int main(void)
 {
-  /*
-   * System initializations.
-   * - HAL initialization, this also initializes the configured device drivers
-   *   and performs the board-specific initializations.
-   * - Kernel initialization, the main() function becomes a thread and the
-   *   RTOS is active.
-   */
   halInit();
   chSysInit();
 
+  // Register drivers.
+  audio_init_context(&g_audio_context, &USB_DRIVER, &I2S_DRIVER);
+
+  // Create reporting thread.
   chThdCreateStatic(wa_reporting_thread, sizeof(wa_reporting_thread), NORMALPRIO, reporting_thread, NULL);
 
-  struct tas2780_context tas2780_a_context =
-      {
-          .channel = TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT,
-          .device_address = TAS2780_DEVICE_ADDRESS_A,
-      };
-  struct tas2780_context tas2780_b_context =
-      {
-          .channel = TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT,
-          .device_address = TAS2780_DEVICE_ADDRESS_B,
-      };
-  struct tas2780_context tas2780_c_context =
-      {
-          .channel = TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT,
-          .device_address = TAS2780_DEVICE_ADDRESS_C,
-      };
-  struct tas2780_context tas2780_d_context =
-      {
-          .channel = TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT,
-          .device_address = TAS2780_DEVICE_ADDRESS_D,
-      };
-
+  // Setup amplifiers.
   i2cStart(&I2CD1, &tas2780_i2c_config);
-
-  tas_2780_setup(&tas2780_a_context);
-  tas_2780_setup(&tas2780_b_context);
-  tas_2780_setup(&tas2780_c_context);
-  tas_2780_setup(&tas2780_d_context);
-
-  i2cStop(&I2CD1);
-
-  audio_init_context(&g_audio_context, &USB_DRIVER, &I2S_DRIVER);
+  tas2780_setup_all();
 
   // Registers this thread for audio events.
   static event_listener_t audio_event_listener;
   chEvtRegisterMask(&g_audio_context.audio_events, &audio_event_listener, AUDIO_EVENT);
 
-  // Activate timer TIM2, as a feedback counter.
-  rccEnableTIM2(FALSE);
+  // Enable the feedback counter timer TIM2 peripheral clock (no low-power mode).
+  rccEnableTIM2(false);
 
   // Activate USB connectivity.
   usbDisconnectBus(&USB_DRIVER);
   usbStart(&USB_DRIVER, &usbcfg);
   usbConnectBus(&USB_DRIVER);
 
+  // Wait for an audio event.
   while (true)
   {
-    // Wait for an audio event.
     chEvtWaitOne(AUDIO_EVENT);
     eventflags_t event_flags = chEvtGetAndClearFlags(&audio_event_listener);
 
@@ -779,10 +747,34 @@ int main(void)
 
     if (event_flags & AUDIO_EVENT_MUTE)
     {
+      if (g_audio_context.control.b_channel_mute_states[0])
+      {
+        tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_LEFT);
+      }
+      else
+      {
+        int16_t volume_left = g_audio_context.control.channel_volume_levels[1];
+        tas2780_set_volume_all(volume_left, TAS2780_CHANNEL_LEFT);
+      }
+
+      if (g_audio_context.control.b_channel_mute_states[1])
+      {
+        tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_RIGHT);
+      }
+      else
+      {
+        int16_t volume_right = g_audio_context.control.channel_volume_levels[1];
+        tas2780_set_volume_all(volume_right, TAS2780_CHANNEL_RIGHT);
+      }
     }
 
     if (event_flags & AUDIO_EVENT_VOLUME)
     {
+      int16_t volume_left = g_audio_context.control.channel_volume_levels[0];
+      int16_t volume_right = g_audio_context.control.channel_volume_levels[1];
+
+      tas2780_set_volume_all(volume_left, TAS2780_CHANNEL_LEFT);
+      tas2780_set_volume_all(volume_right, TAS2780_CHANNEL_RIGHT);
     }
   }
 }

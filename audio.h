@@ -1,27 +1,9 @@
-/*
-    ChibiOS - Copyright (C) 2006..2015 Giovanni Di Sirio
-
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
-
-        http://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
-*/
-
 #ifndef _AUDIO_H_
 #define _AUDIO_H_
 
 #include "hal.h"
 
-/*
- * Supported control requests from USB Audio Class
- */
+// Supported control requests from the USB Audio Class.
 #define UAC_REQ_SET_CUR 0x01
 #define UAC_REQ_SET_MIN 0x02
 #define UAC_REQ_SET_MAX 0x03
@@ -31,80 +13,181 @@
 #define UAC_REQ_GET_MAX 0x83
 #define UAC_REQ_GET_RES 0x84
 
+// Functional endpoints.
 #define UAC_FU_MUTE_CONTROL 0x01
 #define UAC_FU_VOLUME_CONTROL 0x02
 
-/*
- * Audio playback events
- */
+// Audio-related events.
 #define AUDIO_EVENT EVENT_MASK(0)
 #define AUDIO_EVENT_PLAYBACK EVENT_MASK(1)
 #define AUDIO_EVENT_MUTE EVENT_MASK(2)
 #define AUDIO_EVENT_VOLUME EVENT_MASK(3)
 #define AUDIO_EVENT_USB_STATE EVENT_MASK(4)
 
-/*
- * Audio parameters.
+/**
+ * @brief The audio sample rate in Hz.
  */
-#define AUDIO_BIT_PER_BYTE 8U
-#define AUDIO_SAMPLING_FREQUENCY 48000U
-#define AUDIO_RESOLUTION_BIT 16U
-#define AUDIO_CHANNEL_COUNT 2U
+#define AUDIO_SAMPLE_RATE_HZ 48000u
 
-#define AUDIO_SAMPLES_PER_FRAME (AUDIO_SAMPLING_FREQUENCY / 1000)
+/**
+ * @brief The resolution of an audio sample in bits.
+ */
+#define AUDIO_RESOLUTION_BIT 16u
+
+/**
+ * @brief The number of audio channels, e.g. 2 for stereo.
+ */
+#define AUDIO_CHANNEL_COUNT 2u
+
+/**
+ * @brief The number of complete audio packets to hold in the audio buffer.
+ * @details Larger numbers allow more tolerance for changes in provided sample rate,
+ * but lead to more latency.
+ */
+#define AUDIO_BUFFER_PACKET_COUNT 8u
+
+// The values below are calculated from those above, or constant. Changes should not be required.
+//
+/**
+ * @brief The number of bits in a byte.
+ */
+#define AUDIO_BIT_PER_BYTE 8u
+
+/**
+ * @brief Number of audio samples that are transported per USB frame.
+ */
+#define AUDIO_SAMPLES_PER_FRAME (AUDIO_SAMPLE_RATE_HZ / 1000)
+
+/**
+ * @brief The size of each sample in bytes.
+ */
 #define AUDIO_SAMPLE_SIZE (AUDIO_RESOLUTION_BIT / AUDIO_BIT_PER_BYTE)
-#define AUDIO_PACKET_SIZE (AUDIO_SAMPLES_PER_FRAME * AUDIO_CHANNEL_COUNT * AUDIO_SAMPLE_SIZE)
-#define AUDIO_MAX_PACKET_SIZE (2 * AUDIO_PACKET_SIZE)
 
-#define AUDIO_BUFFER_PACKET_COUNT 4u
+/**
+ * @brief The size of an audio packet.
+ * @details Calculated by means of the number of samples per frame, the channel count, and the size per audio sample.
+ */
+#define AUDIO_PACKET_SIZE (AUDIO_SAMPLES_PER_FRAME * AUDIO_CHANNEL_COUNT * AUDIO_SAMPLE_SIZE)
+
+/**
+ * @brief The maximum audio packet size to be received.
+ * @details Due to the feedback mechanism, a frame can be larger than the regular \a AUDIO_PACKET_SIZE.
+ * If the device reports a too low sample rate, the host has to send a larger packet.
+ */
+#define AUDIO_MAX_PACKET_SIZE (2u * AUDIO_PACKET_SIZE)
+
+/**
+ * @brief The number of samples in the audio buffer.
+ */
 #define AUDIO_BUFFER_SAMPLE_COUNT (AUDIO_PACKET_SIZE * AUDIO_BUFFER_PACKET_COUNT)
+
+/**
+ * @brief The size of the packets for the feedback endpoint.
+ * @details These are three bytes long, in 10.14 binary format.
+ * The format represents a number in kHz, so that a 1 at a bit shift of 14 is 1 kHz.
+ */
 #define AUDIO_FEEDBACK_BUFFER_SIZE 3u
 
-// The preferred buffer fill level is half full.
-#define AUDIO_BUFFER_TARGET_SAMPLE_COUNT (AUDIO_BUFFER_SAMPLE_COUNT / 2u)
-
-// Force the buffer fill level back to the target, when it leaves the tolerance region.
-#define AUDIO_BUFFER_SAMPLE_COUNT_TOLERANCE (AUDIO_BUFFER_SAMPLE_COUNT / 4u)
-#define AUDIO_BUFFER_MIN_SAMPLE_COUNT (AUDIO_BUFFER_TARGET_SAMPLE_COUNT - AUDIO_BUFFER_SAMPLE_COUNT_TOLERANCE)
-#define AUDIO_BUFFER_MAX_SAMPLE_COUNT (AUDIO_BUFFER_TARGET_SAMPLE_COUNT + AUDIO_BUFFER_SAMPLE_COUNT_TOLERANCE)
-#define AUDIO_FEEDBACK_CORRECTION_OFFSET (16u) // Indicates an error of around 1 Hz
-
-/*
- * USB Audio Class parameters
+/**
+ * @brief The target buffer fill level in number of samples.
  */
+#define AUDIO_BUFFER_TARGET_FILL_LEVEL (AUDIO_BUFFER_SAMPLE_COUNT / 2u)
+
+/**
+ * @brief The allowed margin for the buffer fill level in samples.
+ * @details If the actual fill level is closer to zero or the end of the buffer than specified by the value,
+ * this application attempts to force the host to adjust fill level by means of changing the reported feedback value.
+ *
+ * @note This should never happen, if the host adheres to the provided feedback, and does not
+ * drop packets, or sends excessive amounts of data.
+ */
+#define AUDIO_BUFFER_FILL_LEVEL_MARGIN (2u * AUDIO_PACKET_SIZE)
+
+/**
+ * @brief The lower boundary for the buffer fill level in samples.
+ */
+#define AUDIO_BUFFER_MIN_FILL_LEVEL (AUDIO_BUFFER_FILL_LEVEL_MARGIN)
+
+/**
+ * @brief The upper boundary for the buffer fill level in samples.
+ */
+#define AUDIO_BUFFER_MAX_FILL_LEVEL (AUDIO_BUFFER_SAMPLE_COUNT - AUDIO_BUFFER_FILL_LEVEL_MARGIN)
+
+/**
+ * @brief The amount by which the feedback value is adjusted, when the buffer fill level is critical.
+ *
+ * @details This translates to a difference in reported sample rate of
+ *   \a AUDIO_FEEDBACK_CORRECTION_OFFSET * 2**14 / 1000
+ *
+ * For example, 16 represents a reported offset of 1.024 Hz - a mild adjustment.
+ */
+#define AUDIO_FEEDBACK_CORRECTION_OFFSET (16u)
+
+// Sanity checks.
+
+#if AUDIO_MAX_PACKET_SIZE <= AUDIO_PACKET_SIZE
+#error "The maximum audio packet size should be larger than the regular packet size."
+#endif
+
+#if AUDIO_BUFFER_MIN_FILL_LEVEL <= 0
+#error "Inconsistent settings, sample count tolerance likely too large."
+#endif
+
+#if AUDIO_BUFFER_MAX_FILL_LEVEL >= AUDIO_BUFFER_SAMPLE_COUNT
+#error "Inconsistent settings, sample count tolerance likely too large."
+#endif
+
+// Endpoint numbers.
 #define AUDIO_PLAYBACK_ENDPOINT 0x01
 #define AUDIO_FEEDBACK_ENDPOINT 0x02
+
+// Interface numbers.
 #define AUDIO_CONTROL_INTERFACE 0
 #define AUDIO_STREAMING_INTERFACE 1
+
+// Functional unit numbers.
 #define AUDIO_INPUT_UNIT_ID 1
 #define AUDIO_FUNCTION_UNIT_ID 2
 #define AUDIO_OUTPUT_UNIT_ID 3
 
+/**
+ * @brief A structure that holds the audio configuration - driver pointers.
+ */
 struct audio_config
 {
-  USBDriver *p_usb_driver;
-  I2SDriver *p_i2s_driver;
+  USBDriver *p_usb_driver; //<<< Pointer to the USB driver structure.
+  I2SDriver *p_i2s_driver; //<<< Pointer to the I2S driver structure.
 };
 
+/**
+ * @brief A structure that holds the state of the audio sample rate feedback.
+ *
+ */
 struct audio_feedback
 {
-  volatile bool b_is_first_sof;
-  volatile bool b_is_valid;
-  volatile size_t sof_package_count;
-  volatile uint32_t value;
-  uint8_t buffer[AUDIO_FEEDBACK_BUFFER_SIZE];
-  volatile uint32_t previous_counter_value;
-  volatile uint32_t timer_count_difference;
+  volatile bool b_is_first_sof;               //<<< If true, the first SOF packet is yet to be received.
+  volatile bool b_is_valid;                   //<<< Is true, if the feedback value is valid.
+  volatile size_t sof_package_count;          //<<< Counts the SOF packages since the last feedback value update.
+  volatile uint32_t value;                    //<<< The current feedback value.
+  uint8_t buffer[AUDIO_FEEDBACK_BUFFER_SIZE]; //<<< The current feedback buffer, derived from the feedback value.
+  volatile uint32_t previous_counter_value;   //<<< The counter value at the time of the previous SOF interrupt.
+  volatile uint32_t timer_count_difference;   //<<< The accumulated timer count duration over all SOF interrupts.
 };
 
+/**
+ * @brief A structure that holds the state of audio playback, as well as the audio buffer.
+ */
 struct audio_playback
 {
-  uint16_t buffer[AUDIO_BUFFER_SAMPLE_COUNT + AUDIO_MAX_PACKET_SIZE / AUDIO_SAMPLE_SIZE];
-  uint16_t buffer_write_offset;
-  bool b_enabled;
-  bool b_output_enabled;
+  uint16_t buffer[AUDIO_BUFFER_SAMPLE_COUNT + AUDIO_MAX_PACKET_SIZE / AUDIO_SAMPLE_SIZE]; //<<< The audio sample buffer.
+  uint16_t buffer_write_offset;                                                           //<<< The current write offset (USB).
+  bool b_enabled;                                                                         //<<< True, if audio playback is enabled, and data is being received via USB.
+  bool b_output_enabled;                                                                  //<<< True, if the audio output is enabled, and data is being output via I2S.
 };
 
+/**
+ * @brief A structure that holds all relevant information for audio control, such as volume and mute.
+ */
 struct audio_control
 {
   uint8_t buffer[8];                                  //<<< The provided control data.
@@ -113,30 +196,57 @@ struct audio_control
   int16_t channel_volume_levels[AUDIO_CHANNEL_COUNT]; //<<< Channel volumes in 8.8 format (in dB).
 };
 
+/**
+ * @brief Diagnostics for observing important properties of the audio module's status.
+ */
 struct audio_diagnostics
 {
-  uint16_t sample_distance;
-  size_t error_count;
+  uint16_t sample_distance; //<<< The distance between read (I2S) and write (USB) memory locations, in units of audio samples.
+  size_t error_count;       //<<< The number of buffer over-/underflow errors.
 };
 
+/**
+ * @brief The main audio context.
+ * @details Holds all important audio-related structures.
+ */
 struct audio_context
 {
-  struct audio_config config;
-  struct audio_feedback feedback;
-  struct audio_playback playback;
-  struct audio_control control;
-  struct audio_diagnostics diagnostics;
+  struct audio_config config;           //<<< The audio configuration structure.
+  struct audio_feedback feedback;       //<<< The audio feedback structure.
+  struct audio_playback playback;       //<<< The audio playback structure.
+  struct audio_control control;         //<<< The audio control structure.
+  struct audio_diagnostics diagnostics; //<<< The audio diagnostics structure.
 
-  event_source_t audio_events;
+  event_source_t audio_events; //<< The event source for all audio-related events.
 };
 
-void audio_init_diagnostics(struct audio_diagnostics *p_diagnostics)
+/**
+ * @brief Toggle the playback state.
+ *
+ * @param p_playback The pointer to the playback structure.
+ */
+__STATIC_INLINE void audio_toggle_playback(struct audio_playback *p_playback)
+{
+  p_playback->b_enabled = !p_playback->b_enabled;
+}
+
+/**
+ * @brief Initialize the audio diagnostics structure.
+ *
+ * @param p_diagnostics The pointer to the structure to initialize.
+ */
+__STATIC_INLINE void audio_init_diagnostics(struct audio_diagnostics *p_diagnostics)
 {
   p_diagnostics->sample_distance = 0u;
   p_diagnostics->error_count = 0u;
 }
 
-void audio_init_feedback(struct audio_feedback *p_feedback)
+/**
+ * @brief Initialize the audio feedback structure.
+ *
+ * @param p_feedback The pointer to the structure to initialize.
+ */
+__STATIC_INLINE void audio_init_feedback(struct audio_feedback *p_feedback)
 {
   p_feedback->b_is_first_sof = true;
   p_feedback->b_is_valid = false;
@@ -146,19 +256,24 @@ void audio_init_feedback(struct audio_feedback *p_feedback)
   p_feedback->timer_count_difference = 0;
 }
 
-void audio_toggle_playback(struct audio_playback *p_playback)
-{
-  p_playback->b_enabled = !p_playback->b_enabled;
-}
-
-void audio_init_playback(struct audio_playback *p_playback)
+/**
+ * @brief Initialize the audio playback structure.
+ *
+ * @param p_playback The pointer to the structure to initialize.
+ */
+__STATIC_INLINE void audio_init_playback(struct audio_playback *p_playback)
 {
   p_playback->buffer_write_offset = 0;
   p_playback->b_output_enabled = false;
   p_playback->b_enabled = false;
 }
 
-void audio_init_control(struct audio_control *p_control)
+/**
+ * @brief Initialize the audio control structure.
+ *
+ * @param p_control The pointer to the structure to initialize.
+ */
+__STATIC_INLINE void audio_init_control(struct audio_control *p_control)
 {
   p_control->channel = 0u;
 
@@ -169,7 +284,14 @@ void audio_init_control(struct audio_control *p_control)
   }
 }
 
-void audio_init_context(struct audio_context *p_context, USBDriver *p_usb_driver, I2SDriver *p_i2s_driver)
+/**
+ * @brief Initialize an audio context, and all its contained structures.
+ *
+ * @param p_context The pointer to the context to initialize.
+ * @param p_usb_driver The USB driver to attach.
+ * @param p_i2s_driver The I2S driver to attach.
+ */
+__STATIC_INLINE void audio_init_context(struct audio_context *p_context, USBDriver *p_usb_driver, I2SDriver *p_i2s_driver)
 {
   p_context->config.p_i2s_driver = p_i2s_driver;
   p_context->config.p_usb_driver = p_usb_driver;
