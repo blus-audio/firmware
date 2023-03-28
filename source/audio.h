@@ -151,8 +151,8 @@
  */
 struct audio_config
 {
-  USBDriver *p_usb_driver; //<<< Pointer to the USB driver structure.
-  I2SDriver *p_i2s_driver; //<<< Pointer to the I2S driver structure.
+  USBDriver *p_usb_driver; ///< Pointer to the USB driver structure.
+  I2SDriver *p_i2s_driver; ///< Pointer to the I2S driver structure.
 };
 
 /**
@@ -161,13 +161,13 @@ struct audio_config
  */
 struct audio_feedback
 {
-  volatile bool b_is_first_sof;               //<<< If true, the first SOF packet is yet to be received.
-  volatile bool b_is_valid;                   //<<< Is true, if the feedback value is valid.
-  volatile size_t sof_package_count;          //<<< Counts the SOF packages since the last feedback value update.
-  volatile uint32_t value;                    //<<< The current feedback value.
-  uint8_t buffer[AUDIO_FEEDBACK_BUFFER_SIZE]; //<<< The current feedback buffer, derived from the feedback value.
-  volatile uint32_t previous_counter_value;   //<<< The counter value at the time of the previous SOF interrupt.
-  volatile uint32_t timer_count_difference;   //<<< The accumulated timer count duration over all SOF interrupts.
+  volatile bool b_is_first_sof;               ///< If true, the first SOF packet is yet to be received.
+  volatile bool b_is_valid;                   ///< Is true, if the feedback value is valid.
+  volatile size_t sof_package_count;          ///< Counts the SOF packages since the last feedback value update.
+  volatile uint32_t value;                    ///< The current feedback value.
+  uint8_t buffer[AUDIO_FEEDBACK_BUFFER_SIZE]; ///< The current feedback buffer, derived from the feedback value.
+  volatile uint32_t previous_counter_value;   ///< The counter value at the time of the previous SOF interrupt.
+  volatile uint32_t timer_count_difference;   ///< The accumulated timer count duration over all SOF interrupts.
 };
 
 /**
@@ -175,10 +175,10 @@ struct audio_feedback
  */
 struct audio_playback
 {
-  uint16_t buffer[AUDIO_BUFFER_SAMPLE_COUNT + AUDIO_MAX_PACKET_SIZE / AUDIO_SAMPLE_SIZE]; //<<< The audio sample buffer.
-  uint16_t buffer_write_offset;                                                           //<<< The current write offset (USB).
-  bool b_enabled;                                                                         //<<< True, if audio playback is enabled, and data is being received via USB.
-  bool b_output_enabled;                                                                  //<<< True, if the audio output is enabled, and data is being output via I2S.
+  uint16_t buffer[AUDIO_BUFFER_SAMPLE_COUNT + AUDIO_MAX_PACKET_SIZE / AUDIO_SAMPLE_SIZE]; ///< The audio sample buffer.
+  uint16_t buffer_write_offset;                                                           ///< The current write offset (USB).
+  bool b_enabled;                                                                         ///< True, if audio playback is enabled, and data is being received via USB.
+  bool b_output_enabled;                                                                  ///< True, if the audio output is enabled, and data is being output via I2S.
 };
 
 /**
@@ -186,10 +186,10 @@ struct audio_playback
  */
 struct audio_control
 {
-  uint8_t buffer[8];                                  //<<< The provided control data.
-  uint8_t channel;                                    //<<< The current channel mask.
-  bool b_channel_mute_states[AUDIO_CHANNEL_COUNT];    //<<< Channel mute states.
-  int16_t channel_volume_levels[AUDIO_CHANNEL_COUNT]; //<<< Channel volumes in 8.8 format (in dB).
+  uint8_t buffer[8];                                  ///< The provided control data.
+  uint8_t channel;                                    ///< The current channel mask.
+  bool b_channel_mute_states[AUDIO_CHANNEL_COUNT];    ///< Channel mute states.
+  int16_t channel_volume_levels[AUDIO_CHANNEL_COUNT]; ///< Channel volumes in 8.8 format (in dB).
 };
 
 /**
@@ -197,8 +197,8 @@ struct audio_control
  */
 struct audio_diagnostics
 {
-  uint16_t sample_distance; //<<< The distance between read (I2S) and write (USB) memory locations, in units of audio samples.
-  size_t error_count;       //<<< The number of buffer over-/underflow errors.
+  uint16_t sample_distance; ///< The distance between read (I2S) and write (USB) memory locations, in units of audio samples.
+  size_t error_count;       ///< The number of buffer over-/underflow errors.
 };
 
 /**
@@ -207,13 +207,13 @@ struct audio_diagnostics
  */
 struct audio_context
 {
-  struct audio_config config;           //<<< The audio configuration structure.
-  struct audio_feedback feedback;       //<<< The audio feedback structure.
-  struct audio_playback playback;       //<<< The audio playback structure.
-  struct audio_control control;         //<<< The audio control structure.
-  struct audio_diagnostics diagnostics; //<<< The audio diagnostics structure.
+  struct audio_config config;           ///< The audio configuration structure.
+  struct audio_feedback feedback;       ///< The audio feedback structure.
+  struct audio_playback playback;       ///< The audio playback structure.
+  struct audio_control control;         ///< The audio control structure.
+  struct audio_diagnostics diagnostics; ///< The audio diagnostics structure.
 
-  event_source_t audio_events; //<< The event source for all audio-related events.
+  event_source_t audio_events; ///< The event source for all audio-related events.
 };
 
 /**

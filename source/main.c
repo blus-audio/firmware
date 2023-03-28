@@ -742,16 +742,23 @@ int main(void)
         i2sStart(&I2S_DRIVER, &i2s_config);
         audio_init_feedback(&g_audio_context.feedback);
         audio_start_sof_capture();
+
+        // Fire a volume event, for setting the correct amplifier volumes on playback.
+        chEvtBroadcastFlags(&g_audio_context.audio_events, AUDIO_EVENT_VOLUME);
       }
       else
       {
         audio_stop_sof_capture();
         i2sStopExchange(&I2S_DRIVER);
         i2sStop(&I2S_DRIVER);
+
+        // Restore volume levels to maximum, when playback ends.
+        tas2780_set_volume_all(TAS2780_VOLUME_MAX, TAS2780_CHANNEL_BOTH);
       }
     }
 
-    if (event_flags & AUDIO_EVENT_MUTE)
+    // Joint handling of volume and mute controls.
+    if ((event_flags & AUDIO_EVENT_MUTE) || (event_flags & AUDIO_EVENT_VOLUME))
     {
       if (g_audio_context.control.b_channel_mute_states[0])
       {
@@ -772,15 +779,6 @@ int main(void)
         int16_t volume_right = g_audio_context.control.channel_volume_levels[1];
         tas2780_set_volume_all(volume_right, TAS2780_CHANNEL_RIGHT);
       }
-    }
-
-    if (event_flags & AUDIO_EVENT_VOLUME)
-    {
-      int16_t volume_left = g_audio_context.control.channel_volume_levels[0];
-      int16_t volume_right = g_audio_context.control.channel_volume_levels[1];
-
-      tas2780_set_volume_all(volume_left, TAS2780_CHANNEL_LEFT);
-      tas2780_set_volume_all(volume_right, TAS2780_CHANNEL_RIGHT);
     }
   }
 }

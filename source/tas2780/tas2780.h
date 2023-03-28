@@ -17,6 +17,11 @@
  */
 #define TAS2780_VOLUME_MUTE (0xFFu)
 
+/**
+ * @brief The volume level that the TAS2780 interprets as maximum.
+ */
+#define TAS2780_VOLUME_MAX (0x00u)
+
 // Device addresses
 #define TAS2780_DEVICE_ADDRESS_A (0x72u)
 #define TAS2780_DEVICE_ADDRESS_B (0x74u)
@@ -24,23 +29,24 @@
 #define TAS2780_DEVICE_ADDRESS_D (0x7Cu)
 
 /**
- * @brief The context for holding information about a TAS2780 amplifier.
- */
-struct tas2780_context
-{
-    uint8_t write_buffer[2]; //<<< The write buffer for I2C transactions.
-    uint16_t device_address; //<<< The I2C device address.
-    uint8_t channel;         //<<< The audio channel (left/right).
-};
-
-/**
  * @brief The selected channel.
  */
 enum tas2780_channel
 {
-    TAS2780_CHANNEL_LEFT,  //<<< The left channel.
-    TAS2780_CHANNEL_RIGHT, //<<< The right channel.
-    TAS2780_CHANNEL_BOTH   //<<< Both channels.
+    TAS2780_CHANNEL_LEFT,  ///< The left channel.
+    TAS2780_CHANNEL_RIGHT, ///< The right channel.
+    TAS2780_CHANNEL_BOTH   ///< Both channels.
+};
+
+/**
+ * @brief The context for holding information about a TAS2780 amplifier.
+ */
+struct tas2780_context
+{
+    uint8_t write_buffer[2];      ///< The write buffer for I2C transactions.
+    uint16_t device_address;      ///< The I2C device address.
+    enum tas2780_channel channel; /**< The audio channel (left/right).
+When \a TAS2780_CHANNEL_BOTH is selected, sets up stereo mixing. */
 };
 
 // PAGE 0 registers

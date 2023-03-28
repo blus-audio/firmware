@@ -3,22 +3,22 @@
 
 static struct tas2780_context tas2780_a_context =
     {
-        .channel = TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT,
+        .channel = TAS2780_CHANNEL_LEFT,
         .device_address = TAS2780_DEVICE_ADDRESS_A,
 };
 static struct tas2780_context tas2780_b_context =
     {
-        .channel = TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT,
+        .channel = TAS2780_CHANNEL_RIGHT,
         .device_address = TAS2780_DEVICE_ADDRESS_B,
 };
 static struct tas2780_context tas2780_c_context =
     {
-        .channel = TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT,
+        .channel = TAS2780_CHANNEL_LEFT,
         .device_address = TAS2780_DEVICE_ADDRESS_C,
 };
 static struct tas2780_context tas2780_d_context =
     {
-        .channel = TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT,
+        .channel = TAS2780_CHANNEL_RIGHT,
         .device_address = TAS2780_DEVICE_ADDRESS_D,
 };
 
@@ -144,10 +144,29 @@ void tas2780_setup(struct tas2780_context *p_context)
     p_write_buffer[1] = 0x0Eu; // 6.5 V
     tas2780_write(p_context, p_write_buffer, 2);
 
+    // Set up the configured channel.
+    uint8_t tdm_cfg2_rx_scfg = TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT;
+    switch (p_context->channel)
+    {
+    case TAS2780_CHANNEL_LEFT:
+        tdm_cfg2_rx_scfg = TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT;
+        break;
+
+    case TAS2780_CHANNEL_RIGHT:
+        tdm_cfg2_rx_scfg = TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT;
+        break;
+
+    case TAS2780_CHANNEL_BOTH:
+        tdm_cfg2_rx_scfg = TAS2780_TDM_CFG2_RX_SCFG_MONO_STEREO_MIX;
+        break;
+
+    default:
+        break;
+    }
     p_write_buffer[0] = TAS2780_TDM_CFG2_REG;
     p_write_buffer[1] = ((0x02u << TAS2780_TDM_CFG2_RX_SLEN_POS) & TAS2780_TDM_CFG2_RX_SLEN_MASK) |
                         ((0x02u << TAS2780_TDM_CFG2_RX_WLEN_POS) & TAS2780_TDM_CFG2_RX_WLEN_MASK) |
-                        ((p_context->channel << TAS2780_TDM_CFG2_RX_SCFG_POS) & TAS2780_TDM_CFG2_RX_SCFG_MASK);
+                        ((tdm_cfg2_rx_scfg << TAS2780_TDM_CFG2_RX_SCFG_POS) & TAS2780_TDM_CFG2_RX_SCFG_MASK);
     tas2780_write(p_context, p_write_buffer, 2);
 
     p_write_buffer[0] = TAS2780_MODE_CTRL_REG;
