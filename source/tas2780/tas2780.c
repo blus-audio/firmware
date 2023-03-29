@@ -1,29 +1,28 @@
 #include "tas2780.h"
 #include "hal.h"
 
-static struct tas2780_context tas2780_a_context =
-    {
-        .channel = TAS2780_CHANNEL_LEFT,
-        .device_address = TAS2780_DEVICE_ADDRESS_A,
-};
-static struct tas2780_context tas2780_b_context =
-    {
-        .channel = TAS2780_CHANNEL_RIGHT,
-        .device_address = TAS2780_DEVICE_ADDRESS_B,
-};
-static struct tas2780_context tas2780_c_context =
-    {
-        .channel = TAS2780_CHANNEL_LEFT,
-        .device_address = TAS2780_DEVICE_ADDRESS_C,
-};
-static struct tas2780_context tas2780_d_context =
-    {
-        .channel = TAS2780_CHANNEL_RIGHT,
-        .device_address = TAS2780_DEVICE_ADDRESS_D,
-};
+static struct tas2780_context tas2780_a_context;
+static struct tas2780_context tas2780_b_context;
+static struct tas2780_context tas2780_c_context;
+static struct tas2780_context tas2780_d_context;
 
 static struct tas2780_context *tas2780_contexts[] = {
     &tas2780_a_context, &tas2780_b_context, &tas2780_c_context, &tas2780_d_context};
+
+/**
+ * @brief Initialize a TAS2780 amplifier context.
+ *
+ * @param p_context The pointer to the amplifier context.
+ * @param channel The channel that the amplifier shall play.
+ * @param device_address The amplifiers I2C device address.
+ * @param analog_gain_setting The analog gain setting between 0x00 and 0x14, where 0x14 is 10 dB louder than 0x00.
+ */
+void tas2780_init_context(struct tas2780_context *p_context, enum tas2780_channel channel, uint16_t device_address, uint8_t analog_gain_setting)
+{
+    p_context->analog_gain_setting = analog_gain_setting > TAS2780_CHNL_0_AMP_LEVEL_MAX ? TAS2780_CHNL_0_AMP_LEVEL_MAX : analog_gain_setting;
+    p_context->channel = channel;
+    p_context->device_address = device_address;
+}
 
 /**
  * @brief Write data to a TAS2780 amplifier.
@@ -132,7 +131,7 @@ void tas2780_setup(struct tas2780_context *p_context)
 
     p_write_buffer[0] = TAS2780_CHNL_0_REG;
     p_write_buffer[1] = ((0x03u << TAS2780_CHNL_0_CDS_MODE_POS) & TAS2780_CHNL_0_CDS_MODE_MASK) |
-                        ((TAS2780_CHNL_0_AMP_LEVEL_DEFAULT << TAS2780_CHNL_0_AMP_LEVEL_POS) & TAS2780_CHNL_0_AMP_LEVEL_MASK);
+                        ((p_context->analog_gain_setting << TAS2780_CHNL_0_AMP_LEVEL_POS) & TAS2780_CHNL_0_AMP_LEVEL_MASK);
     tas2780_write(p_context, p_write_buffer, 2);
 
     p_write_buffer[0] = TAS2780_DC_BLK0_REG;
@@ -179,6 +178,16 @@ void tas2780_setup(struct tas2780_context *p_context)
  */
 void tas2780_setup_all(void)
 {
+    // Common hardware reset.
+    palClearLine(LINE_NSPK_SD);
+    chThdSleepMilliseconds(1);
+    palSetLine(LINE_NSPK_SD);
+
+    tas2780_init_context(&tas2780_a_context, TAS2780_CHANNEL_LEFT, TAS2780_DEVICE_ADDRESS_A, 0x00);
+    tas2780_init_context(&tas2780_b_context, TAS2780_CHANNEL_RIGHT, TAS2780_DEVICE_ADDRESS_B, 0x00);
+    tas2780_init_context(&tas2780_c_context, TAS2780_CHANNEL_LEFT, TAS2780_DEVICE_ADDRESS_C, 0x00);
+    tas2780_init_context(&tas2780_d_context, TAS2780_CHANNEL_RIGHT, TAS2780_DEVICE_ADDRESS_D, 0x00);
+
     for (size_t amplifier_index = 0; amplifier_index < ARRAY_LENGTH(tas2780_contexts); amplifier_index++)
     {
         tas2780_setup(tas2780_contexts[amplifier_index]);

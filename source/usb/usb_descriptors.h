@@ -95,7 +95,7 @@ static const uint8_t audio_configuration_descriptor_data[122] = {
     USB_DESC_BYTE(0x00),                   // bAssocTerminal (none).
     USB_DESC_BYTE(AUDIO_FUNCTION_UNIT_ID), // bSourceID.
     USB_DESC_BYTE(0x00),                   // iTerminal (none).
-    // Standard AS Interface Descriptor (empty) (UAC 4.5.1)
+    // Standard AS Interface Descriptor (zero-bandwidth) (UAC 4.5.1)
     USB_DESC_INTERFACE(AUDIO_STREAMING_INTERFACE, // bInterfaceNumber.
                        0x00,                      // bAlternateSetting.
                        0x00,                      // bNumEndpoints.
@@ -103,7 +103,7 @@ static const uint8_t audio_configuration_descriptor_data[122] = {
                        0x02,                      // bInterfaceSubClass (AUDIO_STREAMING).
                        0x00,                      // bInterfaceProtocol (none).
                        0),                        // iInterface.
-    // Standard AS Interface Descriptor (functional) (UAC 4.5.1)
+    // Standard AS Interface Descriptor (operational) (UAC 4.5.1)
     USB_DESC_INTERFACE(AUDIO_STREAMING_INTERFACE, // bInterfaceNumber.
                        0x01,                      // bAlternateSetting.
                        0x02,                      // bNumEndpoints.
@@ -134,7 +134,7 @@ static const uint8_t audio_configuration_descriptor_data[122] = {
     USB_DESC_BYTE(9),                              // bLength (9).
     USB_DESC_BYTE(0x05),                           // bDescriptorType (Endpoint).
     USB_DESC_BYTE(AUDIO_PLAYBACK_ENDPOINT),        // bEndpointAddress.
-    USB_DESC_BYTE(0x05),                           // bmAttributes (asynchronous).
+    USB_DESC_BYTE(0x05),                           // bmAttributes (asynchronous isochronous).
     USB_DESC_WORD(AUDIO_MAX_PACKET_SIZE),          // wMaxPacketSize
     USB_DESC_BYTE(0x01),                           // bInterval (1 ms).
     USB_DESC_BYTE(0x00),                           // bRefresh (0).

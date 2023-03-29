@@ -47,6 +47,8 @@ struct tas2780_context
     uint16_t device_address;      ///< The I2C device address.
     enum tas2780_channel channel; /**< The audio channel (left/right).
 When \a TAS2780_CHANNEL_BOTH is selected, sets up stereo mixing. */
+    uint8_t analog_gain_setting;  /**< Can be between 0x00 and 0x14, where 0x14 is loudest.
+     The range of gains is 10 dB. */
 };
 
 // PAGE 0 registers
@@ -99,7 +101,8 @@ When \a TAS2780_CHANNEL_BOTH is selected, sets up stereo mixing. */
 
 #define TAS2780_CHNL_0_AMP_LEVEL_POS (1u)
 #define TAS2780_CHNL_0_AMP_LEVEL_MASK (0x1Fu << TAS2780_CHNL_0_AMP_LEVEL_POS)
-#define TAS2780_CHNL_0_AMP_LEVEL_DEFAULT (0x14u)
+#define TAS2780_CHNL_0_AMP_LEVEL_MAX (0x14u)
+#define TAS2780_CHNL_0_AMP_LEVEL_DEFAULT TAS2780_CHNL_0_AMP_LEVEL_MAX
 
 #define TAS2780_CHNL_0_CDS_MODE_POS (6u)
 #define TAS2780_CHNL_0_CDS_MODE_MASK (0x03u << TAS2780_CHNL_0_CDS_MODE_POS)

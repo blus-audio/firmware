@@ -3,6 +3,9 @@
 
 #include "hal.h"
 
+// I2S driver shorthand.
+#define I2S_DRIVER (I2SD3)
+
 // Supported control requests from the USB Audio Class.
 #define UAC_REQ_SET_CUR 0x01
 #define UAC_REQ_SET_MIN 0x02
@@ -44,7 +47,7 @@
  * @details Larger numbers allow more tolerance for changes in provided sample rate,
  * but lead to more latency.
  */
-#define AUDIO_BUFFER_PACKET_COUNT 4u
+#define AUDIO_BUFFER_PACKET_COUNT 3u
 
 // The values below are calculated from those above, or constant. Changes should not be required.
 //
@@ -151,8 +154,8 @@
  */
 struct audio_config
 {
-  USBDriver *p_usb_driver; ///< Pointer to the USB driver structure.
-  I2SDriver *p_i2s_driver; ///< Pointer to the I2S driver structure.
+  const I2SDriver *p_i2s_driver; ///< Pointer to the I2S driver structure.
+  const I2SConfig *p_i2s_config; ///< Pointer to the I2S configuration structure.
 };
 
 /**
@@ -186,10 +189,11 @@ struct audio_playback
  */
 struct audio_control
 {
-  uint8_t buffer[8];                                  ///< The provided control data.
-  uint8_t channel;                                    ///< The current channel mask.
-  bool b_channel_mute_states[AUDIO_CHANNEL_COUNT];    ///< Channel mute states.
-  int16_t channel_volume_levels[AUDIO_CHANNEL_COUNT]; ///< Channel volumes in 8.8 format (in dB).
+  uint8_t buffer[8];                                         ///< The provided control data.
+  uint8_t channel;                                           ///< The current channel mask.
+  bool b_channel_mute_states[AUDIO_CHANNEL_COUNT];           ///< Channel mute states.
+  int16_t channel_volume_levels_8q8_db[AUDIO_CHANNEL_COUNT]; ///< Channel volumes in 8.8 format (in dB).
+  int16_t local_volume_8q8_db;                               ///< The locally set volume (volume potentiometer) in 8.8 format (in dB).
 };
 
 /**
@@ -272,31 +276,22 @@ __STATIC_INLINE void audio_init_playback(struct audio_playback *p_playback)
 __STATIC_INLINE void audio_init_control(struct audio_control *p_control)
 {
   p_control->channel = 0u;
+  p_control->local_volume_8q8_db = 0;
 
   for (size_t channel_index = 0; channel_index < AUDIO_CHANNEL_COUNT; channel_index++)
   {
     p_control->b_channel_mute_states[channel_index] = false;
-    p_control->channel_volume_levels[channel_index] = 0;
+    p_control->channel_volume_levels_8q8_db[channel_index] = 0;
   }
 }
 
-/**
- * @brief Initialize an audio context, and all its contained structures.
- *
- * @param p_context The pointer to the context to initialize.
- * @param p_usb_driver The USB driver to attach.
- * @param p_i2s_driver The I2S driver to attach.
- */
-__STATIC_INLINE void audio_init_context(struct audio_context *p_context, USBDriver *p_usb_driver, I2SDriver *p_i2s_driver)
-{
-  p_context->config.p_i2s_driver = p_i2s_driver;
-  p_context->config.p_usb_driver = p_usb_driver;
-
-  chEvtObjectInit(&p_context->audio_events);
-  audio_init_feedback(&p_context->feedback);
-  audio_init_playback(&p_context->playback);
-  audio_init_control(&p_context->control);
-  audio_init_diagnostics(&p_context->diagnostics);
-}
+void audio_init_context(struct audio_context *p_context);
+void audio_stop_playback_cb(USBDriver *usbp);
+bool audio_requests_hook_cb(USBDriver *usbp);
+void audio_received_cb(USBDriver *usbp, usbep_t ep);
+void audio_feedback_cb(USBDriver *usbp, usbep_t ep);
+void audio_start_sof_capture(void);
+void audio_stop_sof_capture(void);
+struct audio_context *audio_get_context(void);
 
 #endif // _AUDIO_H_
