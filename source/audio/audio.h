@@ -50,7 +50,7 @@
 #define AUDIO_BUFFER_PACKET_COUNT 3u
 
 // The values below are calculated from those above, or constant. Changes should not be required.
-//
+
 /**
  * @brief The number of bits in a byte.
  */
@@ -154,7 +154,6 @@
  */
 struct audio_config
 {
-  const I2SDriver *p_i2s_driver; ///< Pointer to the I2S driver structure.
   const I2SConfig *p_i2s_config; ///< Pointer to the I2S configuration structure.
 };
 
@@ -230,68 +229,16 @@ __STATIC_INLINE void audio_toggle_playback(struct audio_playback *p_playback)
   p_playback->b_enabled = !p_playback->b_enabled;
 }
 
-/**
- * @brief Initialize the audio diagnostics structure.
- *
- * @param p_diagnostics The pointer to the structure to initialize.
- */
-__STATIC_INLINE void audio_init_diagnostics(struct audio_diagnostics *p_diagnostics)
-{
-  p_diagnostics->sample_distance = 0u;
-  p_diagnostics->error_count = 0u;
-}
-
-/**
- * @brief Initialize the audio feedback structure.
- *
- * @param p_feedback The pointer to the structure to initialize.
- */
-__STATIC_INLINE void audio_init_feedback(struct audio_feedback *p_feedback)
-{
-  p_feedback->b_is_first_sof = true;
-  p_feedback->b_is_valid = false;
-  p_feedback->sof_package_count = 0u;
-  p_feedback->value = 0u;
-  p_feedback->previous_counter_value = 0;
-  p_feedback->timer_count_difference = 0;
-}
-
-/**
- * @brief Initialize the audio playback structure.
- *
- * @param p_playback The pointer to the structure to initialize.
- */
-__STATIC_INLINE void audio_init_playback(struct audio_playback *p_playback)
-{
-  p_playback->buffer_write_offset = 0;
-  p_playback->b_output_enabled = false;
-  p_playback->b_enabled = false;
-}
-
-/**
- * @brief Initialize the audio control structure.
- *
- * @param p_control The pointer to the structure to initialize.
- */
-__STATIC_INLINE void audio_init_control(struct audio_control *p_control)
-{
-  p_control->channel = 0u;
-  p_control->local_volume_8q8_db = 0;
-
-  for (size_t channel_index = 0; channel_index < AUDIO_CHANNEL_COUNT; channel_index++)
-  {
-    p_control->b_channel_mute_states[channel_index] = false;
-    p_control->channel_volume_levels_8q8_db[channel_index] = 0;
-  }
-}
+struct audio_context *audio_get_context(void);
 
 void audio_init_context(struct audio_context *p_context);
+void audio_init_feedback(struct audio_feedback *p_feedback);
+
 void audio_stop_playback_cb(USBDriver *usbp);
 bool audio_requests_hook_cb(USBDriver *usbp);
 void audio_received_cb(USBDriver *usbp, usbep_t ep);
 void audio_feedback_cb(USBDriver *usbp, usbep_t ep);
 void audio_start_sof_capture(void);
 void audio_stop_sof_capture(void);
-struct audio_context *audio_get_context(void);
 
 #endif // _AUDIO_H_

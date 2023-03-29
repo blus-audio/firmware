@@ -1,6 +1,10 @@
 #include <string.h>
 #include "audio.h"
 
+/**
+ * @brief The global audio context.
+ * @details Can be shared with other modules by means of \a audio_get_context().
+ */
 static struct audio_context g_audio_context;
 
 /**
@@ -20,6 +24,71 @@ struct audio_context *audio_get_context(void)
 }
 
 /**
+ * @brief Initialize the audio config structure.
+ *
+ * @param p_config The pointer to the structure to initialize.
+ */
+void audio_init_config(struct audio_config *p_config)
+{
+    p_config->p_i2s_config = &g_i2s_config;
+}
+
+/**
+ * @brief Initialize the audio diagnostics structure.
+ *
+ * @param p_diagnostics The pointer to the structure to initialize.
+ */
+void audio_init_diagnostics(struct audio_diagnostics *p_diagnostics)
+{
+    p_diagnostics->sample_distance = 0u;
+    p_diagnostics->error_count = 0u;
+}
+
+/**
+ * @brief Initialize the audio feedback structure.
+ *
+ * @param p_feedback The pointer to the structure to initialize.
+ */
+void audio_init_feedback(struct audio_feedback *p_feedback)
+{
+    p_feedback->b_is_first_sof = true;
+    p_feedback->b_is_valid = false;
+    p_feedback->sof_package_count = 0u;
+    p_feedback->value = 0u;
+    p_feedback->previous_counter_value = 0;
+    p_feedback->timer_count_difference = 0;
+}
+
+/**
+ * @brief Initialize the audio playback structure.
+ *
+ * @param p_playback The pointer to the structure to initialize.
+ */
+void audio_init_playback(struct audio_playback *p_playback)
+{
+    p_playback->buffer_write_offset = 0;
+    p_playback->b_output_enabled = false;
+    p_playback->b_enabled = false;
+}
+
+/**
+ * @brief Initialize the audio control structure.
+ *
+ * @param p_control The pointer to the structure to initialize.
+ */
+void audio_init_control(struct audio_control *p_control)
+{
+    p_control->channel = 0u;
+    p_control->local_volume_8q8_db = 0;
+
+    for (size_t channel_index = 0; channel_index < AUDIO_CHANNEL_COUNT; channel_index++)
+    {
+        p_control->b_channel_mute_states[channel_index] = false;
+        p_control->channel_volume_levels_8q8_db[channel_index] = 0;
+    }
+}
+
+/**
  * @brief Initialize an audio context, and all its contained structures.
  *
  * @param p_context The pointer to the context to initialize.
@@ -28,14 +97,13 @@ struct audio_context *audio_get_context(void)
  */
 void audio_init_context(struct audio_context *p_context)
 {
-    p_context->config.p_i2s_driver = &I2S_DRIVER;
-    p_context->config.p_i2s_config = &g_i2s_config;
 
     chEvtObjectInit(&p_context->audio_events);
     audio_init_feedback(&p_context->feedback);
     audio_init_playback(&p_context->playback);
     audio_init_control(&p_context->control);
     audio_init_diagnostics(&p_context->diagnostics);
+    audio_init_config(&p_context->config);
 }
 
 /**
