@@ -78,7 +78,7 @@
  * @details Larger numbers allow more tolerance for changes in provided sample rate,
  * but lead to more latency.
  */
-#define AUDIO_BUFFER_PACKET_COUNT 3u
+#define AUDIO_BUFFER_PACKET_COUNT 5u
 
 // The values below are calculated from those above, or constant. Changes should not be required.
 
@@ -116,16 +116,11 @@
 #define AUDIO_BUFFER_SAMPLE_COUNT (AUDIO_PACKET_SIZE * AUDIO_BUFFER_PACKET_COUNT)
 
 /**
- * @brief The size of the packets for the feedback endpoint.
- * @details These are three bytes long, in 10.14 binary format.
- * The format represents a number in kHz, so that a 1 at a bit shift of 14 is 1 kHz.
- */
-#define AUDIO_FEEDBACK_BUFFER_SIZE 3u
-
-/**
  * @brief The target buffer fill level in number of samples.
+ * @details By adding half a packet size, the buffer level is equal to half the buffer size on average.
+ * Buffer level is measured only after USB packets have arrived and count towards the buffer level.
  */
-#define AUDIO_BUFFER_TARGET_FILL_LEVEL (AUDIO_BUFFER_SAMPLE_COUNT / 2u)
+#define AUDIO_BUFFER_TARGET_FILL_LEVEL (AUDIO_BUFFER_SAMPLE_COUNT / 2u + AUDIO_PACKET_SIZE / 2u)
 
 /**
  * @brief The allowed margin for the buffer fill level in samples.
@@ -135,17 +130,17 @@
  * @note This should never happen, if the host adheres to the provided feedback, and does not
  * drop packets, or sends excessive amounts of data.
  */
-#define AUDIO_BUFFER_FILL_LEVEL_MARGIN (AUDIO_PACKET_SIZE)
+#define AUDIO_BUFFER_FILL_LEVEL_MARGIN (3 * AUDIO_PACKET_SIZE / 2)
 
 /**
  * @brief The lower boundary for the buffer fill level in samples.
  */
-#define AUDIO_BUFFER_MIN_FILL_LEVEL (AUDIO_BUFFER_FILL_LEVEL_MARGIN)
+#define AUDIO_BUFFER_MIN_FILL_LEVEL (AUDIO_BUFFER_TARGET_FILL_LEVEL - AUDIO_BUFFER_FILL_LEVEL_MARGIN)
 
 /**
  * @brief The upper boundary for the buffer fill level in samples.
  */
-#define AUDIO_BUFFER_MAX_FILL_LEVEL (AUDIO_BUFFER_SAMPLE_COUNT - AUDIO_BUFFER_FILL_LEVEL_MARGIN)
+#define AUDIO_BUFFER_MAX_FILL_LEVEL (AUDIO_BUFFER_TARGET_FILL_LEVEL + AUDIO_BUFFER_FILL_LEVEL_MARGIN)
 
 /**
  * @brief The amount by which the feedback value is adjusted, when the buffer fill level is critical.
@@ -155,7 +150,14 @@
  *
  * For example, 16 represents a reported offset of 1.024 Hz - a mild adjustment.
  */
-#define AUDIO_FEEDBACK_CORRECTION_OFFSET (16u)
+#define AUDIO_FEEDBACK_CORRECTION_OFFSET (64u)
+
+/**
+ * @brief The size of the packets for the feedback endpoint.
+ * @details These are three bytes long, in 10.14 binary format.
+ * The format represents a number in kHz, so that a 1 at a bit shift of 14 is 1 kHz.
+ */
+#define AUDIO_FEEDBACK_BUFFER_SIZE 3u
 
 // Sanity checks.
 
@@ -222,8 +224,8 @@ struct audio_control
  */
 struct audio_diagnostics
 {
-    uint16_t sample_distance; ///< The distance between read (I2S) and write (USB) memory locations, in units of audio samples.
-    size_t error_count;       ///< The number of buffer over-/underflow errors.
+    uint16_t fill_level; ///< The distance between read (I2S) and write (USB) memory locations, in units of audio samples.
+    size_t error_count;  ///< The number of buffer over-/underflow errors.
 };
 
 /**

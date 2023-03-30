@@ -53,11 +53,10 @@ static THD_FUNCTION(reporting_thread, arg)
         chThdSleepMilliseconds(1000);
 
         tas2780_ensure_active_all();
-        chprintf(p_stream, "Status: playback %u / output %u\n", p_audio_context->playback.b_enabled, p_audio_context->playback.b_output_enabled);
         chprintf(p_stream, "Potentiometer: %lu\n", adc_sample);
         chprintf(p_stream, "Volume: %li / %li dB\n", (p_audio_context->control.channel_volume_levels_8q8_db[0] >> 8), (p_audio_context->control.channel_volume_levels_8q8_db[1] >> 8));
         chprintf(p_stream, "Feedback value: %lu (%lu errors)\n", p_audio_context->feedback.value, p_audio_context->diagnostics.error_count);
-        chprintf(p_stream, "Audio buffer use: %lu / %lu (margins %lu / %lu)\n", AUDIO_BUFFER_SAMPLE_COUNT - p_audio_context->diagnostics.sample_distance, AUDIO_BUFFER_SAMPLE_COUNT, AUDIO_BUFFER_MIN_FILL_LEVEL, AUDIO_BUFFER_MAX_FILL_LEVEL);
+        chprintf(p_stream, "Audio buffer fill level: %lu / %lu (margins %lu / %lu)\n", p_audio_context->diagnostics.fill_level, AUDIO_BUFFER_SAMPLE_COUNT, AUDIO_BUFFER_MIN_FILL_LEVEL, AUDIO_BUFFER_MAX_FILL_LEVEL);
     }
 }
 

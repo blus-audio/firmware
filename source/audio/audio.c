@@ -50,7 +50,7 @@ volatile struct audio_context *audio_get_context(void)
  */
 void audio_init_diagnostics(volatile struct audio_diagnostics *p_diagnostics)
 {
-    p_diagnostics->sample_distance = 0u;
+    p_diagnostics->fill_level = 0u;
     p_diagnostics->error_count = 0u;
 }
 
@@ -126,7 +126,6 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
 
     volatile struct audio_feedback *p_feedback = &g_audio_context.feedback;
     volatile struct audio_diagnostics *p_diagnostics = &g_audio_context.diagnostics;
-    volatile struct audio_playback *p_playback = &g_audio_context.playback;
     uint32_t counter_value = TIM2->CNT;
 
     // Reset any timer interrupt flags.
@@ -136,16 +135,6 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
     if (!(timer_status_register & TIM_SR_TIF))
     {
         // Trigger interrupt flag was not set.
-        OSAL_IRQ_EPILOGUE();
-        return;
-    }
-
-    if (!p_playback->b_output_enabled)
-    {
-        // Start measurement and reporting after having reached the target buffer fill level.
-        // This ensures that the target buffer fill level is reached exactly -
-        // until this point, the USB packets should have nominal size.
-        p_feedback->b_is_valid = false;
         OSAL_IRQ_EPILOGUE();
         return;
     }
@@ -197,12 +186,12 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
         // or accumulated inaccuracies in measuring Ff. The sink must have sufficient buffer capability to accommodate this.
         // When the sink recognizes this condition, it should adjust the reported Ff value to correct it.
         // This may also be necessary to compensate for relative clock drifts.""
-        if (p_diagnostics->sample_distance > AUDIO_BUFFER_MAX_FILL_LEVEL)
+        if (p_diagnostics->fill_level > AUDIO_BUFFER_MAX_FILL_LEVEL)
         {
             p_feedback->value -= AUDIO_FEEDBACK_CORRECTION_OFFSET;
             p_diagnostics->error_count++;
         }
-        else if (p_diagnostics->sample_distance < AUDIO_BUFFER_MIN_FILL_LEVEL)
+        else if (p_diagnostics->fill_level < AUDIO_BUFFER_MIN_FILL_LEVEL)
         {
             p_feedback->value += AUDIO_FEEDBACK_CORRECTION_OFFSET;
             p_diagnostics->error_count++;
@@ -311,10 +300,10 @@ void audio_update_write_offset(uint16_t received_sample_count)
 }
 
 /**
- * @brief Calculate the sample count that can be written to I2S.
+ * @brief Calculate the sample count that can be written via I2S - the buffer fill level.
  * @details This is the difference in samples between the write pointer (USB) and read pointer (I2S DMA).
  */
-void audio_calculate_writable_sample_count(void)
+void audio_update_fill_level(void)
 {
     uint16_t read_offset = (uint16_t)AUDIO_BUFFER_SAMPLE_COUNT - (uint16_t)(I2S_DRIVER.dmatx->stream->NDTR);
     uint16_t write_offset = g_audio_context.playback.buffer_write_offset;
@@ -326,7 +315,7 @@ void audio_calculate_writable_sample_count(void)
         sample_distance += AUDIO_BUFFER_SAMPLE_COUNT;
     }
     sample_distance += (write_offset - read_offset);
-    g_audio_context.diagnostics.sample_distance = sample_distance;
+    g_audio_context.diagnostics.fill_level = sample_distance;
 }
 
 /**
@@ -346,28 +335,25 @@ void audio_received_cb(USBDriver *usbp, usbep_t ep)
     }
 
     uint16_t received_sample_count = usbGetReceiveTransactionSizeX(usbp, ep) / AUDIO_SAMPLE_SIZE;
-
     audio_update_write_offset(received_sample_count);
-    audio_calculate_writable_sample_count();
+    audio_update_fill_level();
 
     chSysLockFromISR();
-
-    if (received_sample_count == 0 && p_playback->b_output_enabled)
+    if ((received_sample_count == 0) && (p_playback->b_output_enabled))
     {
-        // Disable output on reception of a zero-length packet.
+        // Disable output on zero-length packets.
         p_playback->b_output_enabled = false;
         p_playback->buffer_write_offset = 0;
         chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_STOP_PLAYBACK);
     }
     else if (!p_playback->b_output_enabled && (p_playback->buffer_write_offset >= AUDIO_BUFFER_TARGET_FILL_LEVEL))
     {
-        // Signal that the playback buffer is at the target fill level.
+        // Signal that the playback buffer is at or above the target fill level.
         p_playback->b_output_enabled = true;
         chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_START_PLAYBACK);
     }
 
     usbStartReceiveI(usbp, ep, (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
-
     chSysUnlockFromISR();
 }
 
