@@ -299,6 +299,25 @@ void audio_update_write_offset(uint16_t received_sample_count)
 }
 
 /**
+ * @brief Calculate the sample count that can be written to I2S.
+ * @details This is the difference in samples between the write pointer (USB) and read pointer (I2S DMA).
+ */
+void audio_calculate_writable_sample_count(void)
+{
+    uint16_t read_offset = (uint16_t)AUDIO_BUFFER_SAMPLE_COUNT - (uint16_t)(I2S_DRIVER.dmatx->stream->NDTR);
+    uint16_t write_offset = g_audio_context.playback.buffer_write_offset;
+
+    // Calculate the distance between the DMA read pointer, and the USB driver's write pointer in the playback buffer.
+    uint16_t sample_distance = 0;
+    if (read_offset > write_offset)
+    {
+        sample_distance += AUDIO_BUFFER_SAMPLE_COUNT;
+    }
+    sample_distance += (write_offset - read_offset);
+    g_audio_context.diagnostics.sample_distance = sample_distance;
+}
+
+/**
  * @brief Joint callback for when audio data was received from the host, or the reception failed, in the current frame.
  *
  * @param usbp A pointer to the USB driver structure.
@@ -315,19 +334,9 @@ void audio_received_cb(USBDriver *usbp, usbep_t ep)
     }
 
     uint16_t received_sample_count = usbGetReceiveTransactionSizeX(usbp, ep) / AUDIO_SAMPLE_SIZE;
+
     audio_update_write_offset(received_sample_count);
-
-    uint16_t read_offset = (uint16_t)AUDIO_BUFFER_SAMPLE_COUNT - (uint16_t)(I2S_DRIVER.dmatx->stream->NDTR);
-    uint16_t write_offset = g_audio_context.playback.buffer_write_offset;
-
-    // Calculate the distance between the DMA read pointer, and the USB driver's write pointer in the playback buffer.
-    uint16_t sample_distance = 0;
-    if (read_offset > write_offset)
-    {
-        sample_distance += AUDIO_BUFFER_SAMPLE_COUNT;
-    }
-    sample_distance += (write_offset - read_offset);
-    g_audio_context.diagnostics.sample_distance = sample_distance;
+    audio_calculate_writable_sample_count();
 
     chSysLockFromISR();
 
@@ -337,6 +346,13 @@ void audio_received_cb(USBDriver *usbp, usbep_t ep)
         p_playback->b_output_enabled = true;
         i2sStartExchangeI(&I2S_DRIVER);
     }
+
+    if (received_sample_count == 0 && p_playback->b_output_enabled)
+    {
+        p_playback->b_output_enabled = false;
+        i2sStopExchangeI(&I2S_DRIVER);
+    }
+
     usbStartReceiveI(usbp, ep, (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
 
     chSysUnlockFromISR();
