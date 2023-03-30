@@ -2,10 +2,15 @@
 #include "audio.h"
 
 /**
+ * @brief The event source for all audio-related events.
+ */
+static event_source_t g_audio_event_source;
+
+/**
  * @brief The global audio context.
  * @details Can be shared with other modules by means of \a audio_get_context().
  */
-static struct audio_context g_audio_context;
+static volatile struct audio_context g_audio_context;
 
 /**
  * @brief Settings structure for the I2S driver.
@@ -18,19 +23,24 @@ static const I2SConfig g_i2s_config = {
     .end_cb = NULL,
     .i2spr = SPI_I2SPR_MCKOE | (SPI_I2SPR_I2SDIV & 6)};
 
-struct audio_context *audio_get_context(void)
+/**
+ * @brief Get the global audio event source.
+ *
+ * @return event_source_t* The pointer to the event source.
+ */
+event_source_t *audio_get_event_source(void)
 {
-    return &g_audio_context;
+    return &g_audio_event_source;
 }
 
 /**
- * @brief Initialize the audio config structure.
+ * @brief Get the global audio context.
  *
- * @param p_config The pointer to the structure to initialize.
+ * @return volatile struct* The pointer to the audio context.
  */
-void audio_init_config(struct audio_config *p_config)
+volatile struct audio_context *audio_get_context(void)
 {
-    p_config->p_i2s_config = &g_i2s_config;
+    return &g_audio_context;
 }
 
 /**
@@ -38,7 +48,7 @@ void audio_init_config(struct audio_config *p_config)
  *
  * @param p_diagnostics The pointer to the structure to initialize.
  */
-void audio_init_diagnostics(struct audio_diagnostics *p_diagnostics)
+void audio_init_diagnostics(volatile struct audio_diagnostics *p_diagnostics)
 {
     p_diagnostics->sample_distance = 0u;
     p_diagnostics->error_count = 0u;
@@ -49,7 +59,7 @@ void audio_init_diagnostics(struct audio_diagnostics *p_diagnostics)
  *
  * @param p_feedback The pointer to the structure to initialize.
  */
-void audio_init_feedback(struct audio_feedback *p_feedback)
+void audio_init_feedback(volatile struct audio_feedback *p_feedback)
 {
     p_feedback->b_is_first_sof = true;
     p_feedback->b_is_valid = false;
@@ -64,7 +74,7 @@ void audio_init_feedback(struct audio_feedback *p_feedback)
  *
  * @param p_playback The pointer to the structure to initialize.
  */
-void audio_init_playback(struct audio_playback *p_playback)
+void audio_init_playback(volatile struct audio_playback *p_playback)
 {
     p_playback->buffer_write_offset = 0;
     p_playback->b_output_enabled = false;
@@ -76,7 +86,7 @@ void audio_init_playback(struct audio_playback *p_playback)
  *
  * @param p_control The pointer to the structure to initialize.
  */
-void audio_init_control(struct audio_control *p_control)
+void audio_init_control(volatile struct audio_control *p_control)
 {
     p_control->channel = 0u;
     p_control->local_volume_8q8_db = 0;
@@ -92,18 +102,14 @@ void audio_init_control(struct audio_control *p_control)
  * @brief Initialize an audio context, and all its contained structures.
  *
  * @param p_context The pointer to the context to initialize.
- * @param p_usb_driver The USB driver to attach.
- * @param p_i2s_driver The I2S driver to attach.
  */
-void audio_init_context(struct audio_context *p_context)
+void audio_init_context(volatile struct audio_context *p_context)
 {
-
-    chEvtObjectInit(&p_context->audio_events);
+    chEvtObjectInit(&g_audio_event_source);
     audio_init_feedback(&p_context->feedback);
     audio_init_playback(&p_context->playback);
     audio_init_control(&p_context->control);
     audio_init_diagnostics(&p_context->diagnostics);
-    audio_init_config(&p_context->config);
 }
 
 /**
@@ -118,9 +124,9 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
 {
     OSAL_IRQ_PROLOGUE();
 
-    struct audio_feedback *p_feedback = &g_audio_context.feedback;
-    struct audio_diagnostics *p_diagnostics = &g_audio_context.diagnostics;
-    struct audio_playback *p_playback = &g_audio_context.playback;
+    volatile struct audio_feedback *p_feedback = &g_audio_context.feedback;
+    volatile struct audio_diagnostics *p_diagnostics = &g_audio_context.diagnostics;
+    volatile struct audio_playback *p_playback = &g_audio_context.playback;
     uint32_t counter_value = TIM2->CNT;
 
     // Reset any timer interrupt flags.
@@ -139,6 +145,7 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
         // Start measurement and reporting after having reached the target buffer fill level.
         // This ensures that the target buffer fill level is reached exactly -
         // until this point, the USB packets should have nominal size.
+        p_feedback->b_is_valid = false;
         OSAL_IRQ_EPILOGUE();
         return;
     }
@@ -147,8 +154,8 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
     {
         // On the first SOF signal, the feedback cannot be calculated yet.
         // Only record the timer state.
-        p_feedback->b_is_first_sof = false;
         p_feedback->previous_counter_value = counter_value;
+        p_feedback->b_is_first_sof = false;
         OSAL_IRQ_EPILOGUE();
         return;
     }
@@ -218,11 +225,11 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
  */
 void audio_start_sof_capture(void)
 {
+    chSysLock();
     // Reset TIM2 instance.
     rccResetTIM2();
     nvicEnableVector(STM32_TIM2_NUMBER, STM32_IRQ_TIM2_PRIORITY);
 
-    chSysLock();
     // Enable TIM2 counter.
     TIM2->CR1 = TIM_CR1_CEN;
     // - The timer clock source is the ETR pin .
@@ -233,6 +240,8 @@ void audio_start_sof_capture(void)
     TIM2->DIER = TIM_DIER_TIE;
     // Remap ITR1 to the USB_FS SOF signal.
     TIM2->OR = TIM_OR_ITR1_RMP_1;
+
+    audio_init_feedback(&g_audio_context.feedback);
     chSysUnlock();
 }
 
@@ -242,10 +251,9 @@ void audio_start_sof_capture(void)
 void audio_stop_sof_capture(void)
 {
     chSysLock();
-    audio_init_feedback(&g_audio_context.feedback);
-
     nvicDisableVector(STM32_TIM2_NUMBER);
     TIM2->CR1 = 0;
+    audio_init_feedback(&g_audio_context.feedback);
     chSysUnlock();
 }
 
@@ -266,7 +274,11 @@ void audio_feedback_cb(USBDriver *usbp, usbep_t ep)
 
     if (g_audio_context.feedback.b_is_valid)
     {
-        usbStartTransmitI(usbp, ep, g_audio_context.feedback.buffer, AUDIO_FEEDBACK_BUFFER_SIZE);
+        // Local copy that cannot be overwritten by an ISR.
+        static uint8_t feedback_buffer[AUDIO_FEEDBACK_BUFFER_SIZE];
+        memcpy(feedback_buffer, (uint8_t *)g_audio_context.feedback.buffer, AUDIO_FEEDBACK_BUFFER_SIZE);
+
+        usbStartTransmitI(usbp, ep, feedback_buffer, AUDIO_FEEDBACK_BUFFER_SIZE);
     }
     else
     {
@@ -284,7 +296,7 @@ void audio_feedback_cb(USBDriver *usbp, usbep_t ep)
  */
 void audio_update_write_offset(uint16_t received_sample_count)
 {
-    struct audio_playback *p_playback = &g_audio_context.playback;
+    volatile struct audio_playback *p_playback = &g_audio_context.playback;
     uint16_t new_buffer_write_offset = p_playback->buffer_write_offset + received_sample_count;
 
     if (new_buffer_write_offset >= AUDIO_BUFFER_SAMPLE_COUNT)
@@ -325,7 +337,7 @@ void audio_calculate_writable_sample_count(void)
  */
 void audio_received_cb(USBDriver *usbp, usbep_t ep)
 {
-    struct audio_playback *p_playback = &g_audio_context.playback;
+    volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     if (!p_playback->b_enabled)
     {
@@ -340,17 +352,18 @@ void audio_received_cb(USBDriver *usbp, usbep_t ep)
 
     chSysLockFromISR();
 
-    // Start playback on the I2S device, when the playback buffer is at least at the target fill level.
-    if (!p_playback->b_output_enabled && (p_playback->buffer_write_offset >= AUDIO_BUFFER_TARGET_FILL_LEVEL))
-    {
-        p_playback->b_output_enabled = true;
-        i2sStartExchangeI(&I2S_DRIVER);
-    }
-
     if (received_sample_count == 0 && p_playback->b_output_enabled)
     {
+        // Disable output on reception of a zero-length packet.
         p_playback->b_output_enabled = false;
-        i2sStopExchangeI(&I2S_DRIVER);
+        p_playback->buffer_write_offset = 0;
+        chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_STOP_PLAYBACK);
+    }
+    else if (!p_playback->b_output_enabled && (p_playback->buffer_write_offset >= AUDIO_BUFFER_TARGET_FILL_LEVEL))
+    {
+        // Signal that the playback buffer is at the target fill level.
+        p_playback->b_output_enabled = true;
+        chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_START_PLAYBACK);
     }
 
     usbStartReceiveI(usbp, ep, (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
@@ -366,18 +379,18 @@ void audio_received_cb(USBDriver *usbp, usbep_t ep)
 static void audio_notify_volume_cb(USBDriver *usbp)
 {
     (void)usbp;
-    struct audio_control *p_control = &g_audio_context.control;
+    volatile struct audio_control *p_control = &g_audio_context.control;
 
+    chSysLockFromISR();
     if (p_control->channel == 0xFF)
     {
-        memcpy(p_control->channel_volume_levels_8q8_db, p_control->buffer + sizeof(int16_t), 2 * sizeof(int16_t));
+        memcpy((int16_t *)p_control->channel_volume_levels_8q8_db, (int16_t *)p_control->buffer + sizeof(int16_t), 2 * sizeof(int16_t));
     }
     else
     {
-        memcpy(&p_control->channel_volume_levels_8q8_db[p_control->channel - 1], p_control->buffer, sizeof(int16_t));
+        memcpy((int16_t *)&p_control->channel_volume_levels_8q8_db[p_control->channel - 1], (int16_t *)p_control->buffer, sizeof(int16_t));
     }
-    chSysLockFromISR();
-    chEvtBroadcastFlagsI(&g_audio_context.audio_events, AUDIO_EVENT_VOLUME);
+    chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_VOLUME);
     chSysUnlockFromISR();
 }
 
@@ -389,7 +402,7 @@ static void audio_notify_volume_cb(USBDriver *usbp)
 static void audio_notify_mute_cb(USBDriver *usbp)
 {
     (void)usbp;
-    struct audio_control *p_control = &g_audio_context.control;
+    volatile struct audio_control *p_control = &g_audio_context.control;
 
     if (p_control->channel == 0xff)
     {
@@ -401,7 +414,7 @@ static void audio_notify_mute_cb(USBDriver *usbp)
         p_control->b_channel_mute_states[p_control->channel - 1] = p_control->buffer[0];
     }
     chSysLockFromISR();
-    chEvtBroadcastFlagsI(&g_audio_context.audio_events, AUDIO_EVENT_MUTE);
+    chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_MUTE);
     chSysUnlockFromISR();
 }
 
@@ -419,7 +432,8 @@ static void audio_notify_mute_cb(USBDriver *usbp)
 bool audio_handle_request_cb(USBDriver *usbp, uint8_t req, uint8_t ctrl,
                              uint8_t channel, uint16_t length)
 {
-    struct audio_control *p_control = &g_audio_context.control;
+    volatile struct audio_control *p_control = &g_audio_context.control;
+    uint8_t *p_buffer = (uint8_t *)p_control->buffer;
 
     switch (req)
     {
@@ -428,7 +442,7 @@ bool audio_handle_request_cb(USBDriver *usbp, uint8_t req, uint8_t ctrl,
     case UAC_REQ_SET_RES:
         if (ctrl == UAC_FU_VOLUME_CONTROL)
         {
-            usbSetupTransfer(usbp, p_control->buffer, length, NULL);
+            usbSetupTransfer(usbp, p_buffer, length, NULL);
             return true;
         }
         break;
@@ -437,8 +451,8 @@ bool audio_handle_request_cb(USBDriver *usbp, uint8_t req, uint8_t ctrl,
         if (ctrl == UAC_FU_VOLUME_CONTROL)
         {
             for (size_t i = 0; i < length; i++)
-                ((int16_t *)p_control->buffer)[i] = 0;
-            usbSetupTransfer(usbp, p_control->buffer, length, NULL);
+                ((int16_t *)p_buffer)[i] = 0;
+            usbSetupTransfer(usbp, p_buffer, length, NULL);
             return true;
         }
         break;
@@ -447,8 +461,8 @@ bool audio_handle_request_cb(USBDriver *usbp, uint8_t req, uint8_t ctrl,
         if (ctrl == UAC_FU_VOLUME_CONTROL)
         {
             for (size_t i = 0; i < length; i++)
-                ((int16_t *)p_control->buffer)[i] = -100 * 256;
-            usbSetupTransfer(usbp, p_control->buffer, length, NULL);
+                ((int16_t *)p_buffer)[i] = -100 * 256;
+            usbSetupTransfer(usbp, p_buffer, length, NULL);
             return true;
         }
         break;
@@ -457,8 +471,8 @@ bool audio_handle_request_cb(USBDriver *usbp, uint8_t req, uint8_t ctrl,
         if (ctrl == UAC_FU_VOLUME_CONTROL)
         {
             for (size_t i = 0; i < length; i++)
-                ((int16_t *)p_control->buffer)[i] = 128;
-            usbSetupTransfer(usbp, p_control->buffer, length, NULL);
+                ((int16_t *)p_buffer)[i] = 128;
+            usbSetupTransfer(usbp, p_buffer, length, NULL);
             return true;
         }
         break;
@@ -469,13 +483,13 @@ bool audio_handle_request_cb(USBDriver *usbp, uint8_t req, uint8_t ctrl,
             if (channel == 0xff)
             {
                 uint8_t value[3] = {0, p_control->b_channel_mute_states[0], p_control->b_channel_mute_states[1]};
-                memcpy(p_control->buffer, value, sizeof(value));
-                usbSetupTransfer(usbp, p_control->buffer, length, NULL);
+                memcpy(p_buffer, value, sizeof(value));
+                usbSetupTransfer(usbp, p_buffer, length, NULL);
             }
             else
             {
-                memcpy(p_control->buffer, &p_control->b_channel_mute_states[channel - 1], sizeof(uint8_t));
-                usbSetupTransfer(usbp, p_control->buffer, length, NULL);
+                *p_buffer = p_control->b_channel_mute_states[channel - 1];
+                usbSetupTransfer(usbp, p_buffer, length, NULL);
             }
             return true;
         }
@@ -484,13 +498,13 @@ bool audio_handle_request_cb(USBDriver *usbp, uint8_t req, uint8_t ctrl,
             if (channel == 0xff)
             {
                 int16_t value[3] = {0, p_control->channel_volume_levels_8q8_db[0], p_control->channel_volume_levels_8q8_db[1]};
-                memcpy(p_control->buffer, value, sizeof(value));
-                usbSetupTransfer(usbp, p_control->buffer, length, NULL);
+                memcpy(p_buffer, value, sizeof(value));
+                usbSetupTransfer(usbp, p_buffer, length, NULL);
             }
             else
             {
-                memcpy(p_control->buffer, &p_control->channel_volume_levels_8q8_db[channel - 1], sizeof(int16_t));
-                usbSetupTransfer(usbp, p_control->buffer, length, NULL);
+                memcpy(p_buffer, (uint8_t *)&p_control->channel_volume_levels_8q8_db[channel - 1], sizeof(int16_t));
+                usbSetupTransfer(usbp, p_buffer, length, NULL);
             }
             return true;
         }
@@ -500,13 +514,13 @@ bool audio_handle_request_cb(USBDriver *usbp, uint8_t req, uint8_t ctrl,
         if (ctrl == UAC_FU_MUTE_CONTROL)
         {
             p_control->channel = channel;
-            usbSetupTransfer(usbp, p_control->buffer, length, audio_notify_mute_cb);
+            usbSetupTransfer(usbp, p_buffer, length, audio_notify_mute_cb);
             return true;
         }
         else if (ctrl == UAC_FU_VOLUME_CONTROL)
         {
             p_control->channel = channel;
-            usbSetupTransfer(usbp, p_control->buffer, length, audio_notify_volume_cb);
+            usbSetupTransfer(usbp, p_buffer, length, audio_notify_volume_cb);
             return true;
         }
         break;
@@ -549,22 +563,22 @@ bool audio_control_cb(USBDriver *usbp, uint8_t iface, uint8_t entity, uint8_t re
 /**
  * @brief The start-playback callback.
  * @details Is called, when the audio endpoint goes into its operational alternate mode (actual music playback begins).
- * It broadcasts the \a AUDIO_EVENT_PLAYBACK event.
+ * It broadcasts the \a AUDIO_EVENT_START_STREAMING event.
  *
  * @param usbp The pointer to the USB driver structure.
  */
 void start_playback_cb(USBDriver *usbp)
 {
-    struct audio_playback *p_playback = &g_audio_context.playback;
+    volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     if (!p_playback->b_enabled)
     {
         audio_init_playback(p_playback);
-        audio_toggle_playback(p_playback);
+        p_playback->b_enabled = true;
 
         // Distribute event, and prepare USB audio data reception, and feedback endpoint transmission.
         chSysLockFromISR();
-        chEvtBroadcastFlagsI(&g_audio_context.audio_events, AUDIO_EVENT_PLAYBACK);
+        chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_START_STREAMING);
 
         // Feedback yet unknown, transmit empty packet.
         usbStartTransmitI(usbp, AUDIO_FEEDBACK_ENDPOINT, NULL, 0);
@@ -579,22 +593,22 @@ void start_playback_cb(USBDriver *usbp)
 /**
  * @brief The stop-playback callback.
  * @details Is called on USB reset, or when the audio endpoint goes into its zero bandwidth alternate mode.
- * It broadcasts the \a AUDIO_EVENT_PLAYBACK event.
+ * It broadcasts the \a AUDIO_EVENT_STOP_STREAMING event.
  *
  * @param usbp The pointer to the USB driver structure.
  */
 void audio_stop_playback_cb(USBDriver *usbp)
 {
     (void)usbp;
-    struct audio_playback *p_playback = &g_audio_context.playback;
+    volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     if (p_playback->b_enabled)
     {
-        audio_toggle_playback(p_playback);
+        p_playback->b_enabled = false;
 
         // Distribute event.
         chSysLockFromISR();
-        chEvtBroadcastFlagsI(&g_audio_context.audio_events, AUDIO_EVENT_PLAYBACK);
+        chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_STOP_STREAMING);
         chSysUnlockFromISR();
     }
 }
@@ -644,4 +658,63 @@ bool audio_requests_hook_cb(USBDriver *usbp)
         }
     }
     return false;
+}
+
+static THD_WORKING_AREA(wa_audio_thread, 128);
+
+/**
+ * @brief A thread that handles audio-related tasks.
+ */
+static THD_FUNCTION(audio_thread, arg)
+{
+    (void)arg;
+    chRegSetThreadName("audio");
+
+    // Registers this thread for audio events.
+    static event_listener_t audio_event_listener;
+    chEvtRegisterMask(&g_audio_event_source, &audio_event_listener, AUDIO_EVENT);
+
+    // Enable the feedback counter timer TIM2 peripheral clock (no low-power mode).
+    rccEnableTIM2(false);
+
+    while (true)
+    {
+        chEvtWaitOne(AUDIO_EVENT);
+        eventflags_t event_flags = chEvtGetAndClearFlags(&audio_event_listener);
+
+        if (event_flags & AUDIO_EVENT_START_PLAYBACK)
+        {
+            i2sStartExchange(&I2S_DRIVER);
+            audio_start_sof_capture();
+        }
+
+        if (event_flags & AUDIO_EVENT_STOP_PLAYBACK)
+        {
+            i2sStopExchange(&I2S_DRIVER);
+        }
+
+        if (event_flags & AUDIO_EVENT_START_STREAMING)
+        {
+            i2sStart(&I2S_DRIVER, &g_i2s_config);
+
+            // Fire a volume event, for setting the correct DAC volumes on playback.
+            chEvtBroadcastFlags(&g_audio_event_source, AUDIO_EVENT_VOLUME);
+        }
+
+        if (event_flags & AUDIO_EVENT_STOP_STREAMING)
+        {
+            audio_stop_sof_capture();
+            i2sStopExchange(&I2S_DRIVER);
+            i2sStop(&I2S_DRIVER);
+        }
+    }
+}
+
+/**
+ * @brief Set up all components of the audio module.
+ */
+void audio_setup(void)
+{
+    audio_init_context(&g_audio_context);
+    chThdCreateStatic(wa_audio_thread, sizeof(wa_audio_thread), NORMALPRIO, audio_thread, NULL);
 }

@@ -49,12 +49,6 @@ static const USBEndpointConfig endpoint2_config = {
  */
 void usb_event_cb(USBDriver *usbp, usbevent_t event)
 {
-    struct audio_context *p_audio_context = audio_get_context();
-
-    chSysLockFromISR();
-    chEvtBroadcastFlagsI(&p_audio_context->audio_events, AUDIO_EVENT_USB_STATE);
-    chSysUnlockFromISR();
-
     switch (event)
     {
     case USB_EVENT_RESET:

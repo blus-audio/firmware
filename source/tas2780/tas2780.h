@@ -2,6 +2,7 @@
 #define _TAS2780_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "common.h"
 
 /**
@@ -44,6 +45,7 @@ enum tas2780_channel
 struct tas2780_context
 {
     uint8_t write_buffer[2];      ///< The write buffer for I2C transactions.
+    uint8_t read_buffer[2];       ///< The read buffer for I2C transactions.
     uint16_t device_address;      ///< The I2C device address.
     enum tas2780_channel channel; /**< The audio channel (left/right).
 When \a TAS2780_CHANNEL_BOTH is selected, sets up stereo mixing. */
@@ -176,5 +178,6 @@ When \a TAS2780_CHANNEL_BOTH is selected, sets up stereo mixing. */
 void tas2780_setup_all(void);
 void tas2780_set_volume_all(int16_t volume_8q8_db, enum tas2780_channel channel);
 void tas2780_init(struct tas2780_context *p_context, uint16_t device_address);
+void tas2780_ensure_active_all(void);
 
 #endif // _TAS2780_H_

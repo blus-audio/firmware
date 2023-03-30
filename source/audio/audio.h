@@ -3,7 +3,9 @@
 
 #include "hal.h"
 
-// I2S driver shorthand.
+/**
+ * @brief I2S driver shorthand
+ */
 #define I2S_DRIVER (I2SD3)
 
 // Supported control requests from the USB Audio Class.
@@ -20,12 +22,41 @@
 #define UAC_FU_MUTE_CONTROL 0x01
 #define UAC_FU_VOLUME_CONTROL 0x02
 
-// Audio-related events.
+/**
+ * @brief Audio related events.
+ *
+ */
 #define AUDIO_EVENT EVENT_MASK(0)
-#define AUDIO_EVENT_PLAYBACK EVENT_MASK(1)
-#define AUDIO_EVENT_MUTE EVENT_MASK(2)
-#define AUDIO_EVENT_VOLUME EVENT_MASK(3)
-#define AUDIO_EVENT_USB_STATE EVENT_MASK(4)
+
+/**
+ * @brief Start streaming audio data from USB.
+ */
+#define AUDIO_EVENT_START_STREAMING EVENT_MASK(1)
+
+/**
+ * @brief Stop streaming audio data from USB.
+ */
+#define AUDIO_EVENT_STOP_STREAMING EVENT_MASK(2)
+
+/**
+ * @brief Start I2S audio blayback.
+ */
+#define AUDIO_EVENT_START_PLAYBACK EVENT_MASK(3)
+
+/**
+ * @brief Stop I2S audio blayback.
+ */
+#define AUDIO_EVENT_STOP_PLAYBACK EVENT_MASK(4)
+
+/**
+ * @brief Mute state changed.
+ */
+#define AUDIO_EVENT_MUTE EVENT_MASK(5)
+
+/**
+ * @brief Volume setting changed.
+ */
+#define AUDIO_EVENT_VOLUME EVENT_MASK(6)
 
 /**
  * @brief The audio sample rate in Hz.
@@ -150,26 +181,17 @@
 #define AUDIO_OUTPUT_UNIT_ID 3
 
 /**
- * @brief A structure that holds the audio configuration - driver pointers.
- */
-struct audio_config
-{
-  const I2SConfig *p_i2s_config; ///< Pointer to the I2S configuration structure.
-};
-
-/**
  * @brief A structure that holds the state of the audio sample rate feedback.
- *
  */
 struct audio_feedback
 {
-  volatile bool b_is_first_sof;               ///< If true, the first SOF packet is yet to be received.
-  volatile bool b_is_valid;                   ///< Is true, if the feedback value is valid.
-  volatile size_t sof_package_count;          ///< Counts the SOF packages since the last feedback value update.
-  volatile uint32_t value;                    ///< The current feedback value.
+  bool b_is_first_sof;                        ///< If true, the first SOF packet is yet to be received.
+  bool b_is_valid;                            ///< Is true, if the feedback value is valid.
+  size_t sof_package_count;                   ///< Counts the SOF packages since the last feedback value update.
+  uint32_t value;                             ///< The current feedback value.
   uint8_t buffer[AUDIO_FEEDBACK_BUFFER_SIZE]; ///< The current feedback buffer, derived from the feedback value.
-  volatile uint32_t previous_counter_value;   ///< The counter value at the time of the previous SOF interrupt.
-  volatile uint32_t timer_count_difference;   ///< The accumulated timer count duration over all SOF interrupts.
+  uint32_t previous_counter_value;            ///< The counter value at the time of the previous SOF interrupt.
+  uint32_t timer_count_difference;            ///< The accumulated timer count duration over all SOF interrupts.
 };
 
 /**
@@ -210,35 +232,19 @@ struct audio_diagnostics
  */
 struct audio_context
 {
-  struct audio_config config;           ///< The audio configuration structure.
   struct audio_feedback feedback;       ///< The audio feedback structure.
   struct audio_playback playback;       ///< The audio playback structure.
   struct audio_control control;         ///< The audio control structure.
   struct audio_diagnostics diagnostics; ///< The audio diagnostics structure.
-
-  event_source_t audio_events; ///< The event source for all audio-related events.
 };
 
-/**
- * @brief Toggle the playback state.
- *
- * @param p_playback The pointer to the playback structure.
- */
-__STATIC_INLINE void audio_toggle_playback(struct audio_playback *p_playback)
-{
-  p_playback->b_enabled = !p_playback->b_enabled;
-}
+event_source_t *audio_get_event_source(void);
+volatile struct audio_context *audio_get_context(void);
 
-struct audio_context *audio_get_context(void);
-
-void audio_init_context(struct audio_context *p_context);
-void audio_init_feedback(struct audio_feedback *p_feedback);
-
+void audio_setup(void);
 void audio_stop_playback_cb(USBDriver *usbp);
 bool audio_requests_hook_cb(USBDriver *usbp);
 void audio_received_cb(USBDriver *usbp, usbep_t ep);
 void audio_feedback_cb(USBDriver *usbp, usbep_t ep);
-void audio_start_sof_capture(void);
-void audio_stop_sof_capture(void);
 
 #endif // _AUDIO_H_

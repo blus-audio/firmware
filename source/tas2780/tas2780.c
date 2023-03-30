@@ -1,5 +1,5 @@
-#include "tas2780.h"
 #include "hal.h"
+#include "tas2780.h"
 
 static struct tas2780_context tas2780_a_context;
 static struct tas2780_context tas2780_b_context;
@@ -25,17 +25,53 @@ void tas2780_init_context(struct tas2780_context *p_context, enum tas2780_channe
 }
 
 /**
+ * @brief Exchange data with a TAS2780 amplifier.
+ *
+ * @param p_context The pointer to the amplifier context.
+ * @param p_write_buffer The pointer to the buffer to transmit. Can be NULL.
+ * @param write_size The size of the write buffer.
+ * @param p_read_buffer The pointer to the buffer to transmit. Can be NULL.
+ * @param read_size The size of the read buffer.
+ */
+void tas2780_exchange(struct tas2780_context *p_context,
+                      uint8_t *p_write_buffer,
+                      size_t write_size,
+                      uint8_t *p_read_buffer,
+                      size_t read_size)
+{
+    i2cAcquireBus(&I2CD1);
+    i2cMasterTransmit(&I2CD1, p_context->device_address >> 1, p_write_buffer, write_size, p_read_buffer, read_size);
+    i2cReleaseBus(&I2CD1);
+}
+
+/**
+ * @brief Read data from a TAS2780 amplifier.
+ *
+ * @param p_context The pointer to the amplifier context.
+ * @param p_read_buffer The pointer to the buffer to transmit. Can be NULL.
+ * @param read_size The size of the read buffer.
+ */
+void tas2780_read(struct tas2780_context *p_context,
+                  uint8_t *p_read_buffer,
+                  size_t read_size)
+{
+    i2cAcquireBus(&I2CD1);
+    i2cMasterReceive(&I2CD1, p_context->device_address >> 1, p_read_buffer, read_size);
+    i2cReleaseBus(&I2CD1);
+}
+
+/**
  * @brief Write data to a TAS2780 amplifier.
  *
  * @param p_context The pointer to the amplifier context.
- * @param p_buffer The pointer to the buffer to transmit.
- * @param size The size of the buffer.
+ * @param p_write_buffer The pointer to the buffer to transmit.
+ * @param write_size The size of the write buffer.
  */
-void tas2780_write(struct tas2780_context *p_context, uint8_t *p_buffer, size_t size)
+void tas2780_write(struct tas2780_context *p_context,
+                   uint8_t *p_write_buffer,
+                   size_t write_size)
 {
-    i2cAcquireBus(&I2CD1);
-    i2cMasterTransmit(&I2CD1, p_context->device_address >> 1, p_buffer, size, NULL, 0);
-    i2cReleaseBus(&I2CD1);
+    tas2780_exchange(p_context, p_write_buffer, write_size, NULL, 0u);
 }
 
 /**
@@ -180,7 +216,7 @@ void tas2780_setup_all(void)
 {
     // Common hardware reset.
     palClearLine(LINE_NSPK_SD);
-    chThdSleepMilliseconds(1);
+    chThdSleepMilliseconds(100);
     palSetLine(LINE_NSPK_SD);
 
     tas2780_init_context(&tas2780_a_context, TAS2780_CHANNEL_LEFT, TAS2780_DEVICE_ADDRESS_A, 0x00);
@@ -206,24 +242,40 @@ void tas2780_set_volume_all(int16_t volume_8q8_db, enum tas2780_channel channel)
     {
         struct tas2780_context *p_context = tas2780_contexts[amplifier_index];
 
-        if (((p_context->channel == TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT) && (channel == TAS2780_CHANNEL_LEFT)) || ((p_context->channel == TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT) && (channel == TAS2780_CHANNEL_RIGHT)) || (channel == TAS2780_CHANNEL_BOTH))
+        if (((p_context->channel == TAS2780_CHANNEL_LEFT) && (channel == TAS2780_CHANNEL_LEFT)) ||
+            ((p_context->channel == TAS2780_CHANNEL_RIGHT) && (channel == TAS2780_CHANNEL_RIGHT)) ||
+            (channel == TAS2780_CHANNEL_BOTH))
         {
             tas2780_set_volume(p_context, volume_8q8_db);
         }
     }
 }
 
-// FIXME: check active state
-// bool tas2780_is_active(struct tas2780_context *p_context)
-// {
+void tas2780_ensure_active(struct tas2780_context *p_context)
+{
+    uint8_t *p_write_buffer = p_context->write_buffer;
+    uint8_t *p_read_buffer = p_context->read_buffer;
 
-//     p_write_buffer[0] = TAS2780_MODE_CTRL_REG;
-//     p_write_buffer[1] = ((0x00 << TAS2780_MODE_CTRL_MODE_POS) & TAS2780_MODE_CTRL_MODE_MASK);
-//     tas2780_write(p_context, p_write_buffer, 2);
+    p_write_buffer[0] = TAS2780_MODE_CTRL_REG;
+    p_write_buffer[1] = ((0x00 << TAS2780_MODE_CTRL_MODE_POS) & TAS2780_MODE_CTRL_MODE_MASK);
+    tas2780_write(p_context, p_write_buffer, 2u);
+    tas2780_read(p_context, p_read_buffer, 1u);
 
-//     uint8_t reg;
-//     HAL_I2C_Mem_Read(&hi2c1, address, TAS2780_MODE_CTRL_REG, I2C_MEMADD_SIZE_8BIT, &reg, 1, 10000);
-//     uint8_t state = (reg & TAS2780_MODE_CTRL_MODE_MASK) >> TAS2780_MODE_CTRL_MODE_POS;
+    uint8_t state = (p_read_buffer[0] & TAS2780_MODE_CTRL_MODE_MASK) >> TAS2780_MODE_CTRL_MODE_POS;
 
-//     return ((state == TAS2780_MODE_CTRL_MODE_ACTIVE_WITHOUT_MUTE) || (state == TAS2780_MODE_CTRL_MODE_ACTIVE_WITH_MUTE));
-// }
+    if (!((state == TAS2780_MODE_CTRL_MODE_ACTIVE_WITHOUT_MUTE) || (state == TAS2780_MODE_CTRL_MODE_ACTIVE_WITH_MUTE)))
+    {
+        p_write_buffer[0] = TAS2780_MODE_CTRL_REG;
+        p_write_buffer[1] = ((0x00 << TAS2780_MODE_CTRL_MODE_POS) & TAS2780_MODE_CTRL_MODE_MASK);
+        tas2780_write(p_context, p_write_buffer, 2);
+    }
+}
+
+void tas2780_ensure_active_all(void)
+{
+    for (size_t amplifier_index = 0; amplifier_index < ARRAY_LENGTH(tas2780_contexts); amplifier_index++)
+    {
+        struct tas2780_context *p_context = tas2780_contexts[amplifier_index];
+        tas2780_ensure_active(p_context);
+    }
+}
