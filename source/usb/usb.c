@@ -2,6 +2,16 @@
 #include "audio.h"
 
 /**
+ * @brief Settings structure for the USB driver.
+ */
+static const USBConfig g_usb_config = {
+    usb_event_cb,
+    usb_get_descriptor_cb,
+    audio_requests_hook_cb,
+    NULL,
+};
+
+/**
  * @brief A structure that holds the state of endpoint 1.
  */
 static USBOutEndpointState endpoint1_state;
@@ -101,4 +111,14 @@ const USBDescriptor *usb_get_descriptor_cb(USBDriver *usbp, uint8_t dtype, uint8
             return &audio_strings[dindex];
     }
     return NULL;
+}
+
+/**
+ * @brief Activate the USB peripheral.
+ */
+void usb_setup(void)
+{
+    usbDisconnectBus(&USB_DRIVER);
+    usbStart(&USB_DRIVER, &g_usb_config);
+    usbConnectBus(&USB_DRIVER);
 }

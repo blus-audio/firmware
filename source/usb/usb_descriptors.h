@@ -177,17 +177,9 @@ static const uint8_t audio_string1[] = {
 
 // Device Description string.
 static const uint8_t audio_string2[] = {
-    USB_DESC_BYTE(10),                    // bLength.
+    USB_DESC_BYTE(20),                    // bLength.
     USB_DESC_BYTE(USB_DESCRIPTOR_STRING), // bDescriptorType.
-    'b',
-    0,
-    'l',
-    0,
-    'u',
-    0,
-    's',
-    0,
-};
+    'b', 0, 'l', 0, 'u', 0, 's', 0, ' ', 0, 'm', 0, 'i', 0, 'n', 0, 'i', 0};
 
 // Serial Number string.
 static const uint8_t audio_string3[] = {

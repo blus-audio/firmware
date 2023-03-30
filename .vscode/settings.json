@@ -1,4 +1,7 @@
 {
+    "[c]": {
+        "editor.detectIndentation": false,
+    },
     "files.associations": {
         "tas2780.h": "c",
         "chprintf.h": "c"

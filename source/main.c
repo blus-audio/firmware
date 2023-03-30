@@ -15,16 +15,6 @@ static const I2CConfig g_tas2780_i2c_config = {
     .clock_speed = 100000u,
     .duty_cycle = STD_DUTY_CYCLE};
 
-/**
- * @brief Settings structure for the USB driver.
- */
-static const USBConfig usbcfg = {
-    usb_event_cb,
-    usb_get_descriptor_cb,
-    audio_requests_hook_cb,
-    NULL,
-};
-
 static THD_WORKING_AREA(wa_reporting_thread, 128);
 
 /**
@@ -87,6 +77,9 @@ int main(void)
     // Initialize audio module.
     audio_setup();
 
+    // Initialize the USB module.
+    usb_setup();
+
     // Setup amplifiers.
     i2cStart(&I2CD1, &g_tas2780_i2c_config);
     tas2780_setup_all();
@@ -94,11 +87,6 @@ int main(void)
     // Registers this thread for audio events.
     static event_listener_t audio_event_listener;
     chEvtRegisterMask(p_audio_event_source, &audio_event_listener, AUDIO_EVENT);
-
-    // Activate USB connectivity.
-    usbDisconnectBus(&USB_DRIVER);
-    usbStart(&USB_DRIVER, &usbcfg);
-    usbConnectBus(&USB_DRIVER);
 
     // Create reporting thread.
     chThdCreateStatic(wa_reporting_thread, sizeof(wa_reporting_thread), NORMALPRIO, reporting_thread, NULL);
