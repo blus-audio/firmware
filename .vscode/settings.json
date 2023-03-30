@@ -2,5 +2,16 @@
     "files.associations": {
         "tas2780.h": "c",
         "chprintf.h": "c"
+    },
+    "C_Cpp.default.browse.limitSymbolsToIncludedHeaders": true,
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        "**/.dep": true,
+        "**/build": true
     }
 }

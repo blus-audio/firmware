@@ -89,7 +89,7 @@ PROJECT = usbi2s
 MCU  = cortex-m4
 
 # Imported source files and paths.
-CHIBIOS  := ./ChibiOs
+CHIBIOS  := ./ChibiOS
 CONFDIR  := ./cfg
 BUILDDIR := ./build
 DEPDIR   := ./.dep
