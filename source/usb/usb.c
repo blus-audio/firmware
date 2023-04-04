@@ -61,9 +61,6 @@ void usb_event_cb(USBDriver *usbp, usbevent_t event)
 {
     switch (event)
     {
-    case USB_EVENT_RESET:
-        audio_stop_playback_cb(usbp);
-        return;
     case USB_EVENT_ADDRESS:
         return;
     case USB_EVENT_CONFIGURED:
@@ -73,18 +70,20 @@ void usb_event_cb(USBDriver *usbp, usbevent_t event)
         usbInitEndpointI(usbp, AUDIO_FEEDBACK_ENDPOINT, &endpoint2_config);
         chSysUnlockFromISR();
         return;
+    case USB_EVENT_RESET:
+        // Falls into...
+    case USB_EVENT_UNCONFIGURED:
+        // Falls into...
     case USB_EVENT_SUSPEND:
+        audio_stop_playback_cb(usbp);
         return;
     case USB_EVENT_WAKEUP:
         return;
     case USB_EVENT_STALLED:
         return;
-    case USB_EVENT_UNCONFIGURED:
-        return;
     }
     return;
 }
-
 /**
  * @brief Callback function that returns the requested USB descriptor.
  *
