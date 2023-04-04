@@ -1,4 +1,5 @@
 #include <string.h>
+#include "common.h"
 #include "audio.h"
 
 /**
@@ -50,7 +51,6 @@ volatile struct audio_context *audio_get_context(void)
  */
 void audio_init_diagnostics(volatile struct audio_diagnostics *p_diagnostics)
 {
-    p_diagnostics->fill_level = 0u;
     p_diagnostics->error_count = 0u;
 }
 
@@ -61,12 +61,13 @@ void audio_init_diagnostics(volatile struct audio_diagnostics *p_diagnostics)
  */
 void audio_init_feedback(volatile struct audio_feedback *p_feedback)
 {
+    p_feedback->correction = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
     p_feedback->b_is_first_sof = true;
     p_feedback->b_is_valid = false;
     p_feedback->sof_package_count = 0u;
+    p_feedback->last_counter_value = 0u;
+
     p_feedback->value = 0u;
-    p_feedback->previous_counter_value = 0;
-    p_feedback->timer_count_difference = 0;
 }
 
 /**
@@ -76,9 +77,11 @@ void audio_init_feedback(volatile struct audio_feedback *p_feedback)
  */
 void audio_init_playback(volatile struct audio_playback *p_playback)
 {
-    p_playback->buffer_write_offset = 0;
+    p_playback->buffer_write_offset = 0u;
+    p_playback->buffer_read_offset = 0u;
+    p_playback->fill_level = 0u;
     p_playback->b_output_enabled = false;
-    p_playback->b_enabled = false;
+    p_playback->b_streaming_enabled = false;
 }
 
 /**
@@ -113,6 +116,66 @@ void audio_init_context(volatile struct audio_context *p_context)
 }
 
 /**
+ * @brief Perform a manual correction on the feedback value, for steering the host's sample rate.
+ * @details The general USB 2.0 specification states (5.12.4.2, p. 75):
+ * "It is possible that the source will deliver one too many or one too few samples over a long period due to errors
+ * or accumulated inaccuracies in measuring Ff. The sink must have sufficient buffer capability to accommodate this.
+ * When the sink recognizes this condition, it should adjust the reported Ff value to correct it.
+ * This may also be necessary to compensate for relative clock drifts."
+ */
+void audio_feedback_correct(void)
+{
+    volatile struct audio_feedback *p_feedback = &g_audio_context.feedback;
+    volatile struct audio_playback *p_playback = &g_audio_context.playback;
+    volatile struct audio_diagnostics *p_diagnostics = &g_audio_context.diagnostics;
+
+    if (p_feedback->correction == AUDIO_FEEDBACK_CORRECTION_STATE_OFF)
+    {
+        if (p_playback->fill_level > AUDIO_BUFFER_MAX_FILL_LEVEL)
+        {
+            // The fill level is too high, compensate by means of lower feedback value.
+            p_feedback->correction = AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE;
+            p_diagnostics->error_count++;
+        }
+        else if (p_playback->fill_level < AUDIO_BUFFER_MIN_FILL_LEVEL)
+        {
+            // The fill level is too low, compensate by means of higher feedback value.
+            p_feedback->correction = AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE;
+            p_diagnostics->error_count++;
+        }
+    }
+
+    switch (p_feedback->correction)
+    {
+    case AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE:
+        if (p_playback->fill_level <= AUDIO_BUFFER_TARGET_FILL_LEVEL)
+        {
+            // Switch off correction, when reaching target fill level.
+            p_feedback->correction = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
+        }
+        else
+        {
+            p_feedback->value -= AUDIO_FEEDBACK_CORRECTION_OFFSET;
+        }
+        break;
+
+    case AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE:
+        if (p_playback->fill_level >= AUDIO_BUFFER_TARGET_FILL_LEVEL)
+        {
+            // Switch off correction, when reaching target fill level.
+            p_feedback->correction = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
+        }
+        {
+            p_feedback->value += AUDIO_FEEDBACK_CORRECTION_OFFSET;
+        }
+        break;
+
+    default:
+        break;
+    }
+}
+
+/**
  * @brief The interrupt handler for timer TIM2. Called upon reception of a USB start of frame (SOF) signal.
  * @details The timer is used for counting the interval between SOF signals, which arrive roughly with a frequency
  * of 1 kHz. Since the timer is clocked by the I2S master clock, it counts the SOF period in terms of the I2S frequency.
@@ -122,14 +185,14 @@ void audio_init_context(volatile struct audio_context *p_context)
  */
 OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
 {
+    volatile struct audio_feedback *p_feedback = &g_audio_context.feedback;
+
     OSAL_IRQ_PROLOGUE();
 
-    volatile struct audio_feedback *p_feedback = &g_audio_context.feedback;
-    volatile struct audio_diagnostics *p_diagnostics = &g_audio_context.diagnostics;
     uint32_t counter_value = TIM2->CNT;
+    uint32_t timer_status_register = TIM2->SR;
 
     // Reset any timer interrupt flags.
-    uint32_t timer_status_register = TIM2->SR;
     TIM2->SR = 0;
 
     if (!(timer_status_register & TIM_SR_TIF))
@@ -143,32 +206,20 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
     {
         // On the first SOF signal, the feedback cannot be calculated yet.
         // Only record the timer state.
-        p_feedback->previous_counter_value = counter_value;
+        p_feedback->last_counter_value = counter_value;
         p_feedback->b_is_first_sof = false;
         OSAL_IRQ_EPILOGUE();
         return;
     }
 
-    // Normal playback operation.
+    // Normal playback operation below.
 
     // Feedback value is calculated every 64 SOF interrupts => every 64 ms.
     p_feedback->sof_package_count++;
     if (p_feedback->sof_package_count == 64)
     {
-        // Handle timer wrap-around.
-        if (p_feedback->previous_counter_value < counter_value)
-        {
-            p_feedback->timer_count_difference += counter_value - p_feedback->previous_counter_value;
-        }
-        else
-        {
-            p_feedback->timer_count_difference += UINT32_MAX - p_feedback->previous_counter_value + counter_value;
-        }
-        p_feedback->previous_counter_value = counter_value;
-
         // Conveniently, the timer count difference at 64 ms count periods matches the required feedback format.
         // The feedback endpoint requires the device sample rate in kHz in a 10.14 binary (fixpoint) format.
-
         // - The master clock runs 256 times as fast as the reference clock.
         // - The conversion of fs / kHz to fs / Hz adds a factor of 1000
         // - The counting period is 64 ms long.
@@ -176,34 +227,22 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER)
         //   fs / kHz * 2**14 = fs * 256 * 64e-3 s
         //
         // where the left side is the expected format, and the right side the result of this counting function.
-        p_feedback->value = p_feedback->timer_count_difference;
+        p_feedback->value = subtract_circular_unsigned(counter_value,
+                                                       p_feedback->last_counter_value,
+                                                       UINT32_MAX);
+
+        p_feedback->last_counter_value = counter_value;
 
         // If there is too much discrepancy between the target sample buffer fill level, and the
         // actual fill level, this must be compensated manually.
-        //
-        // The general USB 2.0 specification states (5.12.4.2, p. 75):
-        // "It is possible that the source will deliver one too many or one too few samples over a long period due to errors
-        // or accumulated inaccuracies in measuring Ff. The sink must have sufficient buffer capability to accommodate this.
-        // When the sink recognizes this condition, it should adjust the reported Ff value to correct it.
-        // This may also be necessary to compensate for relative clock drifts.""
-        if (p_diagnostics->fill_level > AUDIO_BUFFER_MAX_FILL_LEVEL)
-        {
-            p_feedback->value -= AUDIO_FEEDBACK_CORRECTION_OFFSET;
-            p_diagnostics->error_count++;
-        }
-        else if (p_diagnostics->fill_level < AUDIO_BUFFER_MIN_FILL_LEVEL)
-        {
-            p_feedback->value += AUDIO_FEEDBACK_CORRECTION_OFFSET;
-            p_diagnostics->error_count++;
-        }
+        audio_feedback_correct();
 
         // Translate the feedback value to a buffer of three bytes.
         p_feedback->buffer[0] = p_feedback->value & 0xFF;
         p_feedback->buffer[1] = (p_feedback->value >> 8) & 0xFF;
         p_feedback->buffer[2] = (p_feedback->value >> 16) & 0xFF;
 
-        p_feedback->timer_count_difference = 0;
-        p_feedback->sof_package_count = 0;
+        p_feedback->sof_package_count = 0u;
         p_feedback->b_is_valid = true;
     }
 
@@ -254,18 +293,21 @@ void audio_stop_sof_capture(void)
  */
 void audio_feedback_cb(USBDriver *usbp, usbep_t ep)
 {
-    if (!g_audio_context.playback.b_enabled)
+    volatile struct audio_feedback *p_feedback = &g_audio_context.feedback;
+    volatile struct audio_playback *p_playback = &g_audio_context.playback;
+
+    if (!p_playback->b_streaming_enabled)
     {
         return;
     }
 
     chSysLockFromISR();
 
-    if (g_audio_context.feedback.b_is_valid)
+    if (p_feedback->b_is_valid)
     {
         // Local copy that cannot be overwritten by an ISR.
         static uint8_t feedback_buffer[AUDIO_FEEDBACK_BUFFER_SIZE];
-        memcpy(feedback_buffer, (uint8_t *)g_audio_context.feedback.buffer, AUDIO_FEEDBACK_BUFFER_SIZE);
+        memcpy(feedback_buffer, (uint8_t *)p_feedback->buffer, AUDIO_FEEDBACK_BUFFER_SIZE);
 
         usbStartTransmitI(usbp, ep, feedback_buffer, AUDIO_FEEDBACK_BUFFER_SIZE);
     }
@@ -279,24 +321,45 @@ void audio_feedback_cb(USBDriver *usbp, usbep_t ep)
 }
 
 /**
- * @brief Update the write pointer, taking into account wrap-around of the circular buffer.
+ * @brief Update the audio buffer write pointer, taking into account wrap-around of the circular buffer.
+ * @details If the nominal buffer size was exceeded by the last packet, the excess is copied to the beginning
+ * of the buffer. The audio buffer is large enough to handle excess data of size \a AUDIO_MAX_PACKET_SIZE.
  *
  * @param received_sample_count The number of newly received samples.
  */
-void audio_update_write_offset(uint16_t received_sample_count)
+void audio_update_buffer(uint16_t received_sample_count)
 {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
     uint16_t new_buffer_write_offset = p_playback->buffer_write_offset + received_sample_count;
 
+    // Copy excessive data back to the start of the audio buffer.
     if (new_buffer_write_offset >= AUDIO_BUFFER_SAMPLE_COUNT)
     {
         for (size_t sample_index = AUDIO_BUFFER_SAMPLE_COUNT; sample_index < new_buffer_write_offset; sample_index++)
         {
             p_playback->buffer[sample_index - AUDIO_BUFFER_SAMPLE_COUNT] = p_playback->buffer[sample_index];
         }
-        new_buffer_write_offset -= AUDIO_BUFFER_SAMPLE_COUNT;
     }
-    p_playback->buffer_write_offset = new_buffer_write_offset;
+
+    p_playback->buffer_write_offset = wrap_unsigned(new_buffer_write_offset, AUDIO_BUFFER_SAMPLE_COUNT);
+}
+
+/**
+ * @brief Determine the I2S DMA's current read offset from the audio buffer start.
+ * @details The information is stored in the \a audio_playback structure.
+ */
+void audio_update_read_offset(void)
+{
+    volatile struct audio_playback *p_playback = &g_audio_context.playback;
+
+    if (I2S_DRIVER.state == I2S_ACTIVE)
+    {
+        p_playback->buffer_read_offset = (uint16_t)AUDIO_BUFFER_SAMPLE_COUNT - (uint16_t)(I2S_DRIVER.dmatx->stream->NDTR);
+    }
+    else
+    {
+        p_playback->buffer_read_offset = 0u;
+    }
 }
 
 /**
@@ -305,17 +368,12 @@ void audio_update_write_offset(uint16_t received_sample_count)
  */
 void audio_update_fill_level(void)
 {
-    uint16_t read_offset = (uint16_t)AUDIO_BUFFER_SAMPLE_COUNT - (uint16_t)(I2S_DRIVER.dmatx->stream->NDTR);
-    uint16_t write_offset = g_audio_context.playback.buffer_write_offset;
+    volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     // Calculate the distance between the DMA read pointer, and the USB driver's write pointer in the playback buffer.
-    uint16_t sample_distance = 0;
-    if (read_offset > write_offset)
-    {
-        sample_distance += AUDIO_BUFFER_SAMPLE_COUNT;
-    }
-    sample_distance += (write_offset - read_offset);
-    g_audio_context.diagnostics.fill_level = sample_distance;
+    p_playback->fill_level = subtract_circular_unsigned(p_playback->buffer_write_offset,
+                                                        p_playback->buffer_read_offset,
+                                                        AUDIO_BUFFER_SAMPLE_COUNT);
 }
 
 /**
@@ -328,29 +386,61 @@ void audio_received_cb(USBDriver *usbp, usbep_t ep)
 {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
-    if (!p_playback->b_enabled)
+    if (!p_playback->b_streaming_enabled)
     {
-        // Disregard packets, when playback is disabled.
+        // Disregard packets, when streaming is disabled.
         return;
     }
 
     uint16_t received_sample_count = usbGetReceiveTransactionSizeX(usbp, ep) / AUDIO_SAMPLE_SIZE;
-    audio_update_write_offset(received_sample_count);
+    audio_update_buffer(received_sample_count);
+    audio_update_read_offset();
     audio_update_fill_level();
 
     chSysLockFromISR();
-    if ((received_sample_count == 0) && (p_playback->b_output_enabled))
+    if (received_sample_count > 0)
     {
-        // Disable output on zero-length packets.
-        p_playback->b_output_enabled = false;
-        p_playback->buffer_write_offset = 0;
-        chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_STOP_PLAYBACK);
+        if (!p_playback->b_output_enabled)
+        {
+            if (p_playback->fill_level >= AUDIO_BUFFER_TARGET_FILL_LEVEL)
+            {
+                // Signal that the playback buffer is at or above the target fill level.
+                p_playback->b_output_enabled = true;
+                chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_START_PLAYBACK);
+            }
+        }
+#if 0
+        else
+        {
+
+            if (p_playback->fill_level > AUDIO_BUFFER_MAX_FILL_LEVEL)
+            {
+                uint16_t offset = p_playback->fill_level - AUDIO_BUFFER_TARGET_FILL_LEVEL;
+                p_playback->buffer_write_offset = add_circular_unsigned(p_playback->buffer_write_offset,
+                                                                        offset,
+                                                                        AUDIO_BUFFER_SAMPLE_COUNT);
+                audio_update_fill_level();
+            }
+            else if (p_playback->fill_level < AUDIO_BUFFER_MIN_FILL_LEVEL)
+            {
+                uint16_t offset = AUDIO_BUFFER_TARGET_FILL_LEVEL - p_playback->fill_level;
+                p_playback->buffer_write_offset = subtract_circular_unsigned(p_playback->buffer_write_offset,
+                                                                             offset,
+                                                                             AUDIO_BUFFER_SAMPLE_COUNT);
+                audio_update_fill_level();
+            }
+        }
+#endif
     }
-    else if (!p_playback->b_output_enabled && (p_playback->buffer_write_offset >= AUDIO_BUFFER_TARGET_FILL_LEVEL))
+    else
     {
-        // Signal that the playback buffer is at or above the target fill level.
-        p_playback->b_output_enabled = true;
-        chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_START_PLAYBACK);
+        if (p_playback->b_output_enabled)
+        {
+            // Disable playback on zero-length packets.
+            p_playback->b_output_enabled = false;
+            p_playback->buffer_write_offset = 0;
+            chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_STOP_PLAYBACK);
+        }
     }
 
     usbStartReceiveI(usbp, ep, (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
@@ -557,10 +647,10 @@ void start_playback_cb(USBDriver *usbp)
 {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
-    if (!p_playback->b_enabled)
+    if (!p_playback->b_streaming_enabled)
     {
         audio_init_playback(p_playback);
-        p_playback->b_enabled = true;
+        p_playback->b_streaming_enabled = true;
 
         // Distribute event, and prepare USB audio data reception, and feedback endpoint transmission.
         chSysLockFromISR();
@@ -579,7 +669,7 @@ void start_playback_cb(USBDriver *usbp)
 /**
  * @brief The stop-playback callback.
  * @details Is called on USB reset, or when the audio endpoint goes into its zero bandwidth alternate mode.
- * It broadcasts the \a AUDIO_EVENT_STOP_STREAMING event.
+ * It broadcasts the \a AUDIO_EVENT_STOP_STREAMING and \a AUDIO_EVENT_STOP_PLAYBACK events.
  *
  * @param usbp The pointer to the USB driver structure.
  */
@@ -588,12 +678,14 @@ void audio_stop_playback_cb(USBDriver *usbp)
     (void)usbp;
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
-    if (p_playback->b_enabled)
+    if (p_playback->b_streaming_enabled)
     {
-        p_playback->b_enabled = false;
+        p_playback->b_output_enabled = false;
+        p_playback->b_streaming_enabled = false;
 
-        // Distribute event.
+        // Distribute events.
         chSysLockFromISR();
+        chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_STOP_PLAYBACK);
         chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_STOP_STREAMING);
         chSysUnlockFromISR();
     }
@@ -676,6 +768,7 @@ static THD_FUNCTION(audio_thread, arg)
 
         if (event_flags & AUDIO_EVENT_STOP_PLAYBACK)
         {
+            audio_stop_sof_capture();
             i2sStopExchange(&I2S_DRIVER);
         }
 
@@ -689,8 +782,6 @@ static THD_FUNCTION(audio_thread, arg)
 
         if (event_flags & AUDIO_EVENT_STOP_STREAMING)
         {
-            audio_stop_sof_capture();
-            i2sStopExchange(&I2S_DRIVER);
             i2sStop(&I2S_DRIVER);
         }
     }

@@ -36,7 +36,7 @@ static THD_FUNCTION(reporting_thread, arg)
         NULL,            // adcerrorcallback,
         0,               /* CR1 */
         ADC_CR2_SWSTART, /* CR2 */
-        ADC_SMPR2_SMP_AN9(ADC_SAMPLE_3),
+        ADC_SMPR2_SMP_AN9(ADC_SAMPLE_480),
         0, /* SMPR2 */
         0, /* HTR */
         0, /* LTR */
@@ -50,13 +50,14 @@ static THD_FUNCTION(reporting_thread, arg)
     {
         adcsample_t adc_sample;
         adcConvert(&ADCD1, &adc_conversion_group, &adc_sample, 1);
-        chThdSleepMilliseconds(1000);
 
-        tas2780_ensure_active_all();
         chprintf(p_stream, "Potentiometer: %lu\n", adc_sample);
         chprintf(p_stream, "Volume: %li / %li dB\n", (p_audio_context->control.channel_volume_levels_8q8_db[0] >> 8), (p_audio_context->control.channel_volume_levels_8q8_db[1] >> 8));
         chprintf(p_stream, "Feedback value: %lu (%lu errors)\n", p_audio_context->feedback.value, p_audio_context->diagnostics.error_count);
-        chprintf(p_stream, "Audio buffer fill level: %lu / %lu (margins %lu / %lu)\n", p_audio_context->diagnostics.fill_level, AUDIO_BUFFER_SAMPLE_COUNT, AUDIO_BUFFER_MIN_FILL_LEVEL, AUDIO_BUFFER_MAX_FILL_LEVEL);
+        chprintf(p_stream, "Feedback correction mode: %u\n", p_audio_context->feedback.correction);
+        chprintf(p_stream, "Audio buffer fill level: %lu / %lu (margins %lu / %lu)\n", p_audio_context->playback.fill_level, AUDIO_BUFFER_SAMPLE_COUNT, AUDIO_BUFFER_MIN_FILL_LEVEL, AUDIO_BUFFER_MAX_FILL_LEVEL);
+
+        chThdSleepMilliseconds(1000);
     }
 }
 
@@ -82,6 +83,9 @@ int main(void)
     // Setup amplifiers.
     i2cStart(&I2CD1, &g_tas2780_i2c_config);
     tas2780_setup_all();
+
+    chThdSleepMilliseconds(200);
+    tas2780_ensure_active_all();
 
     // Registers this thread for audio events.
     static event_listener_t audio_event_listener;

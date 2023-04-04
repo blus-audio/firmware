@@ -130,7 +130,7 @@
  * @note This should never happen, if the host adheres to the provided feedback, and does not
  * drop packets, or sends excessive amounts of data.
  */
-#define AUDIO_BUFFER_FILL_LEVEL_MARGIN (3 * AUDIO_PACKET_SIZE / 2)
+#define AUDIO_BUFFER_FILL_LEVEL_MARGIN (AUDIO_PACKET_SIZE / 2)
 
 /**
  * @brief The lower boundary for the buffer fill level in samples.
@@ -183,17 +183,28 @@
 #define AUDIO_OUTPUT_UNIT_ID 3
 
 /**
+ * @brief The state of the feedback correction.
+ *
+ */
+enum audio_feedback_correction_state
+{
+    AUDIO_FEEDBACK_CORRECTION_STATE_OFF,      ///< No feedback correction active.
+    AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE, ///< Decrease the feedback value in case of over-filled audio buffer.
+    AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE  ///< Increase the feedback value in case of under-filled audio buffer.
+};
+
+/**
  * @brief A structure that holds the state of the audio sample rate feedback.
  */
 struct audio_feedback
 {
+    enum audio_feedback_correction_state correction;
     bool b_is_first_sof;                        ///< If true, the first SOF packet is yet to be received.
     bool b_is_valid;                            ///< Is true, if the feedback value is valid.
     size_t sof_package_count;                   ///< Counts the SOF packages since the last feedback value update.
     uint32_t value;                             ///< The current feedback value.
     uint8_t buffer[AUDIO_FEEDBACK_BUFFER_SIZE]; ///< The current feedback buffer, derived from the feedback value.
-    uint32_t previous_counter_value;            ///< The counter value at the time of the previous SOF interrupt.
-    uint32_t timer_count_difference;            ///< The accumulated timer count duration over all SOF interrupts.
+    uint32_t last_counter_value;                ///< The counter value at the time of the previous SOF interrupt.
 };
 
 /**
@@ -203,7 +214,9 @@ struct audio_playback
 {
     uint16_t buffer[AUDIO_BUFFER_SAMPLE_COUNT + AUDIO_MAX_PACKET_SIZE / AUDIO_SAMPLE_SIZE]; ///< The audio sample buffer.
     uint16_t buffer_write_offset;                                                           ///< The current write offset (USB).
-    bool b_enabled;                                                                         ///< True, if audio playback is enabled, and data is being received via USB.
+    uint16_t buffer_read_offset;                                                            ///< The current read offset (I2S).
+    uint16_t fill_level;                                                                    ///< The distance between read (I2S) and write (USB) memory locations, in units of audio samples.
+    bool b_streaming_enabled;                                                               ///< True, if audio streaming is enabled, and data is being received via USB.
     bool b_output_enabled;                                                                  ///< True, if the audio output is enabled, and data is being output via I2S.
 };
 
@@ -224,8 +237,7 @@ struct audio_control
  */
 struct audio_diagnostics
 {
-    uint16_t fill_level; ///< The distance between read (I2S) and write (USB) memory locations, in units of audio samples.
-    size_t error_count;  ///< The number of buffer over-/underflow errors.
+    size_t error_count; ///< The number of buffer over-/underflow errors.
 };
 
 /**
