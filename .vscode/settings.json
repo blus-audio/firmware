@@ -1,10 +1,9 @@
 {
-    "[c]": {
-        "editor.detectIndentation": false,
-    },
+    "pre-commit-helper.runOnSave": "fixes",
+    "editor.formatOnSave": false,
     "files.associations": {
-        "tas2780.h": "c",
-        "chprintf.h": "c"
+        "*.h": "c",
+        "*.c": "c"
     },
     "C_Cpp.default.browse.limitSymbolsToIncludedHeaders": true,
     "files.exclude": {

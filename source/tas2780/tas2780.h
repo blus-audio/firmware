@@ -1,13 +1,16 @@
 #ifndef _TAS2780_H_
 #define _TAS2780_H_
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
+
 #include "common.h"
 
 /**
- * @brief Converts a volume level in 8.8 binary signed fixpoint format to the TAS2780 representation.
- * @details The TAS2780 understands volume levels from 0 (0 dB) to 0xC8 (-100 dB), where one step is 0.5 dB.
+ * @brief Converts a volume level in 8.8 binary signed fixpoint format to the
+ * TAS2780 representation.
+ * @details The TAS2780 understands volume levels from 0 (0 dB) to 0xC8 (-100
+ * dB), where one step is 0.5 dB.
  *
  * @param _volume_8q8_db The volume level in 8.8 binary signed fixpoint format.
  */
@@ -32,25 +35,23 @@
 /**
  * @brief The selected channel.
  */
-enum tas2780_channel
-{
-    TAS2780_CHANNEL_LEFT,  ///< The left channel.
-    TAS2780_CHANNEL_RIGHT, ///< The right channel.
-    TAS2780_CHANNEL_BOTH   ///< Both channels.
+enum tas2780_channel {
+    TAS2780_CHANNEL_LEFT,   ///< The left channel.
+    TAS2780_CHANNEL_RIGHT,  ///< The right channel.
+    TAS2780_CHANNEL_BOTH    ///< Both channels.
 };
 
 /**
  * @brief The context for holding information about a TAS2780 amplifier.
  */
-struct tas2780_context
-{
+struct tas2780_context {
     uint8_t write_buffer[2];      ///< The write buffer for I2C transactions.
     uint8_t read_buffer[2];       ///< The read buffer for I2C transactions.
     uint16_t device_address;      ///< The I2C device address.
     enum tas2780_channel channel; /**< The audio channel (left/right).
-When \a TAS2780_CHANNEL_BOTH is selected, sets up stereo mixing. */
-    uint8_t analog_gain_setting;  /**< Can be between 0x00 and 0x14, where 0x14 is loudest.
-     The range of gains is 10 dB. */
+  When \a TAS2780_CHANNEL_BOTH is selected, sets up stereo mixing. */
+    uint8_t analog_gain_setting;  /**< Can be between 0x00 and 0x14, where 0x14 is
+     loudest.  The range of gains is 10 dB. */
 };
 
 // PAGE 0 registers
@@ -180,4 +181,4 @@ void tas2780_set_volume_all(int16_t volume_8q8_db, enum tas2780_channel channel)
 void tas2780_init(struct tas2780_context *p_context, uint16_t device_address);
 void tas2780_ensure_active_all(void);
 
-#endif // _TAS2780_H_
+#endif  // _TAS2780_H_

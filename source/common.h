@@ -1,6 +1,8 @@
 #ifndef _COMMON_H_
 #define _COMMON_H_
 
+#include <stddef.h>
+
 #include "inttypes.h"
 
 /**
@@ -14,32 +16,29 @@
  * @brief Wrap an unsigned number to a certain maximum value.
  *
  * @param value The value to wrap.
- * @param max_value The maximum value, at which wrapping occurs. The maximum value itself wraps back to zero.
+ * @param max_value The maximum value, at which wrapping occurs. The maximum
+ * value itself wraps back to zero.
  * @return size_t The wrapped value.
  */
-static inline size_t wrap_unsigned(size_t value, size_t max_value)
-{
-    return value - ((value / max_value) * max_value);
-}
+static inline size_t wrap_unsigned(size_t value, size_t max_value) { return value - ((value / max_value) * max_value); }
 
 /**
- * @brief Calculates the difference of unsigned values on a circular range of values.
- * @details If the subtrahend is larger than the minuend, the result waps back into the allowed range of values
- * between zero and \a max_value - 1. The overall result is wrapped by means of \a wrap_unsigned() .
+ * @brief Calculates the difference of unsigned values on a circular range of
+ * values.
+ * @details If the subtrahend is larger than the minuend, the result waps back
+ * into the allowed range of values between zero and \a max_value - 1. The
+ * overall result is wrapped by means of \a wrap_unsigned() .
  *
  * @param minuend The value from which to subtract.
  * @param subtrahend The value to subtract.
- * @param max_value The maximum value, at which wrapping occurs. See \a wrap_unsigned() .
+ * @param max_value The maximum value, at which wrapping occurs. See \a
+ * wrap_unsigned() .
  * @return size_t The circular difference.
  */
-static inline size_t subtract_circular_unsigned(size_t minuend, size_t subtrahend, size_t max_value)
-{
-    if (subtrahend > minuend)
-    {
+static inline size_t subtract_circular_unsigned(size_t minuend, size_t subtrahend, size_t max_value) {
+    if (subtrahend > minuend) {
         return wrap_unsigned(minuend + max_value - subtrahend, max_value);
-    }
-    else
-    {
+    } else {
         return wrap_unsigned(minuend - subtrahend, max_value);
     }
 }
@@ -49,12 +48,12 @@ static inline size_t subtract_circular_unsigned(size_t minuend, size_t subtrahen
  *
  * @param summand_a The first summand.
  * @param summand_b The second summand.
- * @param max_value The maximum value, at which wrapping occurs. See \a wrap_unsigned() .
+ * @param max_value The maximum value, at which wrapping occurs. See \a
+ * wrap_unsigned() .
  * @return size_t The wrapped sum.
  */
-static inline size_t add_circular_unsigned(size_t summand_a, size_t summand_b, size_t max_value)
-{
+static inline size_t add_circular_unsigned(size_t summand_a, size_t summand_b, size_t max_value) {
     return wrap_unsigned(summand_a + summand_b, max_value);
 }
 
-#endif // _COMMON_H_
+#endif  // _COMMON_H_
