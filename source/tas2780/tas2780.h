@@ -1,4 +1,4 @@
-// Copyright 2023 elagil
+// Copyright2023 elagil
 #ifndef SOURCE_TAS2780_TAS2780_H_
 #define SOURCE_TAS2780_TAS2780_H_
 
@@ -6,6 +6,15 @@
 #include <stdint.h>
 
 #include "common.h"
+
+/**
+ * @brief The selected channel.
+ */
+enum tas2780_channel {
+    TAS2780_CHANNEL_LEFT,   ///< The left channel.
+    TAS2780_CHANNEL_RIGHT,  ///< The right channel.
+    TAS2780_CHANNEL_BOTH    ///< Both channels.
+};
 
 /**
  * @brief Converts a volume level in 8.8 binary signed fixpoint format to the
@@ -27,25 +36,6 @@
  * @brief The volume level that the TAS2780 interprets as maximum.
  */
 #define TAS2780_VOLUME_MAX (0x00u)
-
-/**
- * @brief Device addresses.
- */
-enum tas2780_device_address {
-    TAS2780_DEVICE_ADDRESS_A = 0x72u,
-    TAS2780_DEVICE_ADDRESS_B = 0x74u,
-    TAS2780_DEVICE_ADDRESS_C = 0x7Au,
-    TAS2780_DEVICE_ADDRESS_D = 0x7Cu
-};
-
-/**
- * @brief The selected channel.
- */
-enum tas2780_channel {
-    TAS2780_CHANNEL_LEFT,   ///< The left channel.
-    TAS2780_CHANNEL_RIGHT,  ///< The right channel.
-    TAS2780_CHANNEL_BOTH    ///< Both channels.
-};
 
 /**
  * @brief The context for holding information about a TAS2780 amplifier.

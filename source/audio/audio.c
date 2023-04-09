@@ -63,7 +63,6 @@ void audio_init_feedback(volatile struct audio_feedback *p_feedback) {
     p_feedback->b_is_valid         = false;
     p_feedback->sof_package_count  = 0u;
     p_feedback->last_counter_value = 0u;
-
     p_feedback->value              = 0u;
 }
 
@@ -239,6 +238,7 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
 
     OSAL_IRQ_EPILOGUE();
 }
+
 /**
  * @brief Set up the timer peripheral for counting USB start of frame (SOF)
  * periods.
