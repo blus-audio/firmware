@@ -1,5 +1,9 @@
 ---
 IndentWidth: 4
 BasedOnStyle: Google
-ColumnLimit: 120
+ColumnLimit: 80
+AlignConsecutiveAssignments: AcrossEmptyLines
+AlignConsecutiveDeclarations: AcrossEmptyLines
+AlignConsecutiveMacros: AcrossEmptyLines
+AlignEscapedNewlines: Right
 ---

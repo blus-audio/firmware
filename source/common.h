@@ -1,5 +1,6 @@
-#ifndef _COMMON_H_
-#define _COMMON_H_
+// Copyright 2023 elagil
+#ifndef SOURCE_COMMON_H_
+#define SOURCE_COMMON_H_
 
 #include <stddef.h>
 
@@ -20,7 +21,9 @@
  * value itself wraps back to zero.
  * @return size_t The wrapped value.
  */
-static inline size_t wrap_unsigned(size_t value, size_t max_value) { return value - ((value / max_value) * max_value); }
+static inline size_t wrap_unsigned(size_t value, size_t max_value) {
+    return value - ((value / max_value) * max_value);
+}
 
 /**
  * @brief Calculates the difference of unsigned values on a circular range of
@@ -35,7 +38,9 @@ static inline size_t wrap_unsigned(size_t value, size_t max_value) { return valu
  * wrap_unsigned() .
  * @return size_t The circular difference.
  */
-static inline size_t subtract_circular_unsigned(size_t minuend, size_t subtrahend, size_t max_value) {
+static inline size_t subtract_circular_unsigned(size_t minuend,
+                                                size_t subtrahend,
+                                                size_t max_value) {
     if (subtrahend > minuend) {
         return wrap_unsigned(minuend + max_value - subtrahend, max_value);
     } else {
@@ -52,8 +57,9 @@ static inline size_t subtract_circular_unsigned(size_t minuend, size_t subtrahen
  * wrap_unsigned() .
  * @return size_t The wrapped sum.
  */
-static inline size_t add_circular_unsigned(size_t summand_a, size_t summand_b, size_t max_value) {
+static inline size_t add_circular_unsigned(size_t summand_a, size_t summand_b,
+                                           size_t max_value) {
     return wrap_unsigned(summand_a + summand_b, max_value);
 }
 
-#endif  // _COMMON_H_
+#endif  // SOURCE_COMMON_H_

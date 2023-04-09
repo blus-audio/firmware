@@ -1,3 +1,4 @@
+// Copyright 2023 elagil
 #include "tas2780.h"
 
 #include "hal.h"
@@ -10,8 +11,9 @@ static struct tas2780_context tas2780_d_context;
 /**
  * @brief An array of all amplifier contexts.
  */
-static struct tas2780_context *tas2780_contexts[] = {&tas2780_a_context, &tas2780_b_context, &tas2780_c_context,
-                                                     &tas2780_d_context};
+static struct tas2780_context *tas2780_contexts[] = {
+    &tas2780_a_context, &tas2780_b_context, &tas2780_c_context,
+    &tas2780_d_context};
 
 /**
  * @brief Initialize a TAS2780 amplifier context.
@@ -22,11 +24,14 @@ static struct tas2780_context *tas2780_contexts[] = {&tas2780_a_context, &tas278
  * @param analog_gain_setting The analog gain setting between 0x00 and 0x14,
  * where 0x14 is 10 dB louder than 0x00.
  */
-void tas2780_init_context(struct tas2780_context *p_context, enum tas2780_channel channel, uint16_t device_address,
+void tas2780_init_context(struct tas2780_context *p_context,
+                          enum tas2780_channel channel, uint16_t device_address,
                           uint8_t analog_gain_setting) {
     p_context->analog_gain_setting =
-        analog_gain_setting > TAS2780_CHNL_0_AMP_LEVEL_MAX ? TAS2780_CHNL_0_AMP_LEVEL_MAX : analog_gain_setting;
-    p_context->channel = channel;
+        analog_gain_setting > TAS2780_CHNL_0_AMP_LEVEL_MAX
+            ? TAS2780_CHNL_0_AMP_LEVEL_MAX
+            : analog_gain_setting;
+    p_context->channel        = channel;
     p_context->device_address = device_address;
 }
 
@@ -39,10 +44,12 @@ void tas2780_init_context(struct tas2780_context *p_context, enum tas2780_channe
  * @param p_read_buffer The pointer to the buffer to transmit. Can be NULL.
  * @param read_size The size of the read buffer.
  */
-void tas2780_exchange(struct tas2780_context *p_context, uint8_t *p_write_buffer, size_t write_size,
+void tas2780_exchange(struct tas2780_context *p_context,
+                      uint8_t *p_write_buffer, size_t write_size,
                       uint8_t *p_read_buffer, size_t read_size) {
     i2cAcquireBus(&I2CD1);
-    i2cMasterTransmit(&I2CD1, p_context->device_address >> 1, p_write_buffer, write_size, p_read_buffer, read_size);
+    i2cMasterTransmit(&I2CD1, p_context->device_address >> 1, p_write_buffer,
+                      write_size, p_read_buffer, read_size);
     i2cReleaseBus(&I2CD1);
 }
 
@@ -53,9 +60,11 @@ void tas2780_exchange(struct tas2780_context *p_context, uint8_t *p_write_buffer
  * @param p_read_buffer The pointer to the buffer to transmit. Can be NULL.
  * @param read_size The size of the read buffer.
  */
-void tas2780_read(struct tas2780_context *p_context, uint8_t *p_read_buffer, size_t read_size) {
+void tas2780_read(struct tas2780_context *p_context, uint8_t *p_read_buffer,
+                  size_t read_size) {
     i2cAcquireBus(&I2CD1);
-    i2cMasterReceive(&I2CD1, p_context->device_address >> 1, p_read_buffer, read_size);
+    i2cMasterReceive(&I2CD1, p_context->device_address >> 1, p_read_buffer,
+                     read_size);
     i2cReleaseBus(&I2CD1);
 }
 
@@ -66,7 +75,8 @@ void tas2780_read(struct tas2780_context *p_context, uint8_t *p_read_buffer, siz
  * @param p_write_buffer The pointer to the buffer to transmit.
  * @param write_size The size of the write buffer.
  */
-void tas2780_write(struct tas2780_context *p_context, uint8_t *p_write_buffer, size_t write_size) {
+void tas2780_write(struct tas2780_context *p_context, uint8_t *p_write_buffer,
+                   size_t write_size) {
     tas2780_exchange(p_context, p_write_buffer, write_size, NULL, 0u);
 }
 
@@ -76,12 +86,13 @@ void tas2780_write(struct tas2780_context *p_context, uint8_t *p_write_buffer, s
  * @param p_context The pointer to the amplifier context.
  * @param volume_8q8_db The volume to set in 8.8 signed binary fixpoint format.
  */
-void tas2780_set_volume(struct tas2780_context *p_context, int16_t volume_8q8_db) {
+void tas2780_set_volume(struct tas2780_context *p_context,
+                        int16_t                 volume_8q8_db) {
     uint8_t *p_write_buffer = p_context->write_buffer;
-    uint8_t volume_db = TAS2780_VOLUME_FROM_8Q8_DB(volume_8q8_db);
+    uint8_t  volume_db      = TAS2780_VOLUME_FROM_8Q8_DB(volume_8q8_db);
 
-    p_write_buffer[0] = TAS2780_DVC_REG;
-    p_write_buffer[1] = volume_db;
+    p_write_buffer[0]       = TAS2780_DVC_REG;
+    p_write_buffer[1]       = volume_db;
     tas2780_write(p_context, p_write_buffer, 2);
 }
 
@@ -105,7 +116,8 @@ void tas2780_setup(struct tas2780_context *p_context) {
 
     // Perform software reset.
     p_write_buffer[0] = TAS2780_SW_RESET_REG;
-    p_write_buffer[1] = (0x01u << TAS2780_SW_RESET_SW_RESET_POS) & TAS2780_SW_RESET_SW_RESET_MASK;
+    p_write_buffer[1] = (0x01u << TAS2780_SW_RESET_SW_RESET_POS) &
+                        TAS2780_SW_RESET_SW_RESET_MASK;
     tas2780_write(p_context, p_write_buffer, 2);
 
     // Wait for the device to start up.
@@ -122,7 +134,8 @@ void tas2780_setup(struct tas2780_context *p_context) {
     tas2780_write(p_context, p_write_buffer, 2);
 
     p_write_buffer[0] = TAS2780_LSR_REG;
-    p_write_buffer[1] = (0x01u << TAS2780_LSR_EN_LLSR_POS) & TAS2780_LSR_EN_LLSR_MASK;
+    p_write_buffer[1] =
+        (0x01u << TAS2780_LSR_EN_LLSR_POS) & TAS2780_LSR_EN_LLSR_MASK;
     tas2780_write(p_context, p_write_buffer, 2);
 
     // undocumented
@@ -162,18 +175,23 @@ void tas2780_setup(struct tas2780_context *p_context) {
     // Set the analog gain of the amplifier.
     p_write_buffer[0] = TAS2780_CHNL_0_REG;
     p_write_buffer[1] =
-        ((0x03u << TAS2780_CHNL_0_CDS_MODE_POS) & TAS2780_CHNL_0_CDS_MODE_MASK) |
-        ((p_context->analog_gain_setting << TAS2780_CHNL_0_AMP_LEVEL_POS) & TAS2780_CHNL_0_AMP_LEVEL_MASK);
+        ((0x03u << TAS2780_CHNL_0_CDS_MODE_POS) &
+         TAS2780_CHNL_0_CDS_MODE_MASK) |
+        ((p_context->analog_gain_setting << TAS2780_CHNL_0_AMP_LEVEL_POS) &
+         TAS2780_CHNL_0_AMP_LEVEL_MASK);
     tas2780_write(p_context, p_write_buffer, 2);
 
     // Set up "PWR_MODE2".
-    // PVDD is the only supply. VBAT1S is delivered by an internal LDO and used to
-    // supply at signals close to idle channel levels. When audio signal levels
-    // crosses -100dBFS (default), Class-D output switches to PVDD.
+    // PVDD is the only supply. VBAT1S is delivered by an internal LDO and used
+    // to supply at signals close to idle channel levels. When audio signal
+    // levels crosses -100dBFS (default), Class-D output switches to PVDD.
     p_write_buffer[0] = TAS2780_DC_BLK0_REG;
-    p_write_buffer[1] = ((0x01u << TAS2780_DC_BLK0_VBAT1S_MODE_POS) & TAS2780_DC_BLK0_VBAT1S_MODE_MASK) |
-                        ((0x01u << TAS2780_DC_BLK0_AMP_SS_POS) & TAS2780_DC_BLK0_AMP_SS_MASK) |
-                        ((0x01u << TAS2780_DC_BLK0_HPF_FREQ_PB_POS) & TAS2780_DC_BLK0_HPF_FREQ_PB_MASK);
+    p_write_buffer[1] =
+        ((0x01u << TAS2780_DC_BLK0_VBAT1S_MODE_POS) &
+         TAS2780_DC_BLK0_VBAT1S_MODE_MASK) |
+        ((0x01u << TAS2780_DC_BLK0_AMP_SS_POS) & TAS2780_DC_BLK0_AMP_SS_MASK) |
+        ((0x01u << TAS2780_DC_BLK0_HPF_FREQ_PB_POS) &
+         TAS2780_DC_BLK0_HPF_FREQ_PB_MASK);
     tas2780_write(p_context, p_write_buffer, 2);
 
     // Under-voltage lockout, set to 6.5 V.
@@ -202,14 +220,18 @@ void tas2780_setup(struct tas2780_context *p_context) {
 
     // Set up the determined audio channel.
     p_write_buffer[0] = TAS2780_TDM_CFG2_REG;
-    p_write_buffer[1] = ((0x02u << TAS2780_TDM_CFG2_RX_SLEN_POS) & TAS2780_TDM_CFG2_RX_SLEN_MASK) |
-                        ((0x02u << TAS2780_TDM_CFG2_RX_WLEN_POS) & TAS2780_TDM_CFG2_RX_WLEN_MASK) |
-                        ((tdm_cfg2_rx_scfg << TAS2780_TDM_CFG2_RX_SCFG_POS) & TAS2780_TDM_CFG2_RX_SCFG_MASK);
+    p_write_buffer[1] = ((0x02u << TAS2780_TDM_CFG2_RX_SLEN_POS) &
+                         TAS2780_TDM_CFG2_RX_SLEN_MASK) |
+                        ((0x02u << TAS2780_TDM_CFG2_RX_WLEN_POS) &
+                         TAS2780_TDM_CFG2_RX_WLEN_MASK) |
+                        ((tdm_cfg2_rx_scfg << TAS2780_TDM_CFG2_RX_SCFG_POS) &
+                         TAS2780_TDM_CFG2_RX_SCFG_MASK);
     tas2780_write(p_context, p_write_buffer, 2);
 
     // Enable active mode without mute.
     p_write_buffer[0] = TAS2780_MODE_CTRL_REG;
-    p_write_buffer[1] = ((0x00 << TAS2780_MODE_CTRL_MODE_POS) & TAS2780_MODE_CTRL_MODE_MASK);
+    p_write_buffer[1] =
+        ((0x00 << TAS2780_MODE_CTRL_MODE_POS) & TAS2780_MODE_CTRL_MODE_MASK);
     tas2780_write(p_context, p_write_buffer, 2);
 }
 
@@ -222,12 +244,17 @@ void tas2780_setup_all(void) {
     chThdSleepMilliseconds(1);
     palSetLine(LINE_NSPK_SD);
 
-    tas2780_init_context(&tas2780_a_context, TAS2780_CHANNEL_LEFT, TAS2780_DEVICE_ADDRESS_A, 0x00);
-    tas2780_init_context(&tas2780_b_context, TAS2780_CHANNEL_RIGHT, TAS2780_DEVICE_ADDRESS_B, 0x00);
-    tas2780_init_context(&tas2780_c_context, TAS2780_CHANNEL_LEFT, TAS2780_DEVICE_ADDRESS_C, 0x00);
-    tas2780_init_context(&tas2780_d_context, TAS2780_CHANNEL_RIGHT, TAS2780_DEVICE_ADDRESS_D, 0x00);
+    tas2780_init_context(&tas2780_a_context, TAS2780_CHANNEL_LEFT,
+                         TAS2780_DEVICE_ADDRESS_A, 0x00);
+    tas2780_init_context(&tas2780_b_context, TAS2780_CHANNEL_RIGHT,
+                         TAS2780_DEVICE_ADDRESS_B, 0x00);
+    tas2780_init_context(&tas2780_c_context, TAS2780_CHANNEL_LEFT,
+                         TAS2780_DEVICE_ADDRESS_C, 0x00);
+    tas2780_init_context(&tas2780_d_context, TAS2780_CHANNEL_RIGHT,
+                         TAS2780_DEVICE_ADDRESS_D, 0x00);
 
-    for (size_t amplifier_index = 0; amplifier_index < ARRAY_LENGTH(tas2780_contexts); amplifier_index++) {
+    for (size_t amplifier_index = 0;
+         amplifier_index < ARRAY_LENGTH(tas2780_contexts); amplifier_index++) {
         tas2780_setup(tas2780_contexts[amplifier_index]);
     }
 }
@@ -239,12 +266,16 @@ void tas2780_setup_all(void) {
  * @param volume_8q8_db The volume to set in 8.8 signed binary fixpoint format.
  * @param channel The channel to set the volume for.
  */
-void tas2780_set_volume_all(int16_t volume_8q8_db, enum tas2780_channel channel) {
-    for (size_t amplifier_index = 0; amplifier_index < ARRAY_LENGTH(tas2780_contexts); amplifier_index++) {
+void tas2780_set_volume_all(int16_t              volume_8q8_db,
+                            enum tas2780_channel channel) {
+    for (size_t amplifier_index = 0;
+         amplifier_index < ARRAY_LENGTH(tas2780_contexts); amplifier_index++) {
         struct tas2780_context *p_context = tas2780_contexts[amplifier_index];
 
-        if (((p_context->channel == TAS2780_CHANNEL_LEFT) && (channel == TAS2780_CHANNEL_LEFT)) ||
-            ((p_context->channel == TAS2780_CHANNEL_RIGHT) && (channel == TAS2780_CHANNEL_RIGHT)) ||
+        if (((p_context->channel == TAS2780_CHANNEL_LEFT) &&
+             (channel == TAS2780_CHANNEL_LEFT)) ||
+            ((p_context->channel == TAS2780_CHANNEL_RIGHT) &&
+             (channel == TAS2780_CHANNEL_RIGHT)) ||
             (channel == TAS2780_CHANNEL_BOTH)) {
             tas2780_set_volume(p_context, volume_8q8_db);
         }
@@ -259,19 +290,22 @@ void tas2780_set_volume_all(int16_t volume_8q8_db, enum tas2780_channel channel)
  */
 void tas2780_ensure_active(struct tas2780_context *p_context) {
     uint8_t *p_write_buffer = p_context->write_buffer;
-    uint8_t *p_read_buffer = p_context->read_buffer;
+    uint8_t *p_read_buffer  = p_context->read_buffer;
 
-    p_write_buffer[0] = TAS2780_MODE_CTRL_REG;
-    p_write_buffer[1] = ((0x00 << TAS2780_MODE_CTRL_MODE_POS) & TAS2780_MODE_CTRL_MODE_MASK);
+    p_write_buffer[0]       = TAS2780_MODE_CTRL_REG;
+    p_write_buffer[1] =
+        ((0x00 << TAS2780_MODE_CTRL_MODE_POS) & TAS2780_MODE_CTRL_MODE_MASK);
     tas2780_write(p_context, p_write_buffer, 2u);
     tas2780_read(p_context, p_read_buffer, 1u);
 
-    uint8_t state = (p_read_buffer[0] & TAS2780_MODE_CTRL_MODE_MASK) >> TAS2780_MODE_CTRL_MODE_POS;
+    uint8_t state = (p_read_buffer[0] & TAS2780_MODE_CTRL_MODE_MASK) >>
+                    TAS2780_MODE_CTRL_MODE_POS;
 
     if (!((state == TAS2780_MODE_CTRL_MODE_ACTIVE_WITHOUT_MUTE) ||
           (state == TAS2780_MODE_CTRL_MODE_ACTIVE_WITH_MUTE))) {
         p_write_buffer[0] = TAS2780_MODE_CTRL_REG;
-        p_write_buffer[1] = ((0x00 << TAS2780_MODE_CTRL_MODE_POS) & TAS2780_MODE_CTRL_MODE_MASK);
+        p_write_buffer[1] = ((0x00 << TAS2780_MODE_CTRL_MODE_POS) &
+                             TAS2780_MODE_CTRL_MODE_MASK);
         tas2780_write(p_context, p_write_buffer, 2);
     }
 }
@@ -280,7 +314,8 @@ void tas2780_ensure_active(struct tas2780_context *p_context) {
  * @brief Ensure the active state without mute on all connected amplifiers.
  */
 void tas2780_ensure_active_all(void) {
-    for (size_t amplifier_index = 0; amplifier_index < ARRAY_LENGTH(tas2780_contexts); amplifier_index++) {
+    for (size_t amplifier_index = 0;
+         amplifier_index < ARRAY_LENGTH(tas2780_contexts); amplifier_index++) {
         struct tas2780_context *p_context = tas2780_contexts[amplifier_index];
         tas2780_ensure_active(p_context);
     }

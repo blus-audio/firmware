@@ -1,5 +1,6 @@
-#ifndef _AUDIO_H_
-#define _AUDIO_H_
+// Copyright 2023 elagil
+#ifndef SOURCE_AUDIO_AUDIO_H_
+#define SOURCE_AUDIO_AUDIO_H_
 
 #include "hal.h"
 
@@ -19,7 +20,7 @@
 #define UAC_REQ_GET_RES 0x84
 
 // Functional endpoints.
-#define UAC_FU_MUTE_CONTROL 0x01
+#define UAC_FU_MUTE_CONTROL   0x01
 #define UAC_FU_VOLUME_CONTROL 0x02
 
 /**
@@ -103,7 +104,8 @@
  * @details Calculated by means of the number of samples per frame, the channel
  * count, and the size per audio sample.
  */
-#define AUDIO_PACKET_SIZE (AUDIO_SAMPLES_PER_FRAME * AUDIO_CHANNEL_COUNT * AUDIO_SAMPLE_SIZE)
+#define AUDIO_PACKET_SIZE                                                      \
+    (AUDIO_SAMPLES_PER_FRAME * AUDIO_CHANNEL_COUNT * AUDIO_SAMPLE_SIZE)
 
 /**
  * @brief The maximum audio packet size to be received.
@@ -116,7 +118,8 @@
 /**
  * @brief The number of samples in the audio buffer.
  */
-#define AUDIO_BUFFER_SAMPLE_COUNT (AUDIO_PACKET_SIZE * AUDIO_BUFFER_PACKET_COUNT)
+#define AUDIO_BUFFER_SAMPLE_COUNT                                              \
+    (AUDIO_PACKET_SIZE * AUDIO_BUFFER_PACKET_COUNT)
 
 /**
  * @brief The target buffer fill level in number of samples.
@@ -124,7 +127,8 @@
  * buffer size on average. Buffer level is measured only after USB packets have
  * arrived and count towards the buffer level.
  */
-#define AUDIO_BUFFER_TARGET_FILL_LEVEL (AUDIO_BUFFER_SAMPLE_COUNT / 2u + AUDIO_PACKET_SIZE / 2u)
+#define AUDIO_BUFFER_TARGET_FILL_LEVEL                                         \
+    (AUDIO_BUFFER_SAMPLE_COUNT / 2u + AUDIO_PACKET_SIZE / 2u)
 
 /**
  * @brief The allowed margin for the buffer fill level in samples.
@@ -140,12 +144,14 @@
 /**
  * @brief The lower boundary for the buffer fill level in samples.
  */
-#define AUDIO_BUFFER_MIN_FILL_LEVEL (AUDIO_BUFFER_TARGET_FILL_LEVEL - AUDIO_BUFFER_FILL_LEVEL_MARGIN)
+#define AUDIO_BUFFER_MIN_FILL_LEVEL                                            \
+    (AUDIO_BUFFER_TARGET_FILL_LEVEL - AUDIO_BUFFER_FILL_LEVEL_MARGIN)
 
 /**
  * @brief The upper boundary for the buffer fill level in samples.
  */
-#define AUDIO_BUFFER_MAX_FILL_LEVEL (AUDIO_BUFFER_TARGET_FILL_LEVEL + AUDIO_BUFFER_FILL_LEVEL_MARGIN)
+#define AUDIO_BUFFER_MAX_FILL_LEVEL                                            \
+    (AUDIO_BUFFER_TARGET_FILL_LEVEL + AUDIO_BUFFER_FILL_LEVEL_MARGIN)
 
 /**
  * @brief The amount by which the feedback value is adjusted, when the buffer
@@ -169,7 +175,8 @@
 // Sanity checks.
 
 #if AUDIO_MAX_PACKET_SIZE <= AUDIO_PACKET_SIZE
-#error "The maximum audio packet size should be larger than the regular packet size."
+#error                                                                         \
+    "The maximum audio packet size should be larger than the regular packet size."
 #endif
 
 #if AUDIO_BUFFER_MIN_FILL_LEVEL >= AUDIO_BUFFER_MAX_FILL_LEVEL
@@ -181,26 +188,26 @@
 #define AUDIO_FEEDBACK_ENDPOINT 0x02
 
 // Interface numbers.
-#define AUDIO_CONTROL_INTERFACE 0
+#define AUDIO_CONTROL_INTERFACE   0
 #define AUDIO_STREAMING_INTERFACE 1
 
 // Functional unit numbers.
-#define AUDIO_INPUT_UNIT_ID 1
+#define AUDIO_INPUT_UNIT_ID    1
 #define AUDIO_FUNCTION_UNIT_ID 2
-#define AUDIO_OUTPUT_UNIT_ID 3
+#define AUDIO_OUTPUT_UNIT_ID   3
 
 /**
  * @brief The state of the feedback correction.
  *
  */
 enum audio_feedback_correction_state {
-    AUDIO_FEEDBACK_CORRECTION_STATE_OFF,       ///< No feedback correction active.
-    AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE,  ///< Decrease the feedback value in
-                                               ///< case of over-filled audio
+    AUDIO_FEEDBACK_CORRECTION_STATE_OFF,  ///< No feedback correction active.
+    AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE,  ///< Decrease the feedback value
+                                               ///< in case of over-filled audio
                                                ///< buffer.
-    AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE   ///< Increase the feedback value in
-                                               ///< case of under-filled audio
-                                               ///< buffer.
+    AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE   ///< Increase the feedback value
+                                              ///< in case of under-filled audio
+                                              ///< buffer.
 };
 
 /**
@@ -208,15 +215,17 @@ enum audio_feedback_correction_state {
  */
 struct audio_feedback {
     enum audio_feedback_correction_state correction;
-    bool b_is_first_sof;                         ///< If true, the first SOF packet is yet to be received.
-    bool b_is_valid;                             ///< Is true, if the feedback value is valid.
-    size_t sof_package_count;                    ///< Counts the SOF packages since the last feedback
-                                                 ///< value update.
-    uint32_t value;                              ///< The current feedback value.
-    uint8_t buffer[AUDIO_FEEDBACK_BUFFER_SIZE];  ///< The current feedback buffer,
-                                                 ///< derived from the feedback value.
-    uint32_t last_counter_value;                 ///< The counter value at the time of the
-                                                 ///< previous SOF interrupt.
+    bool b_is_first_sof;       ///< If true, the first SOF packet is yet to be
+                               ///< received.
+    bool   b_is_valid;         ///< Is true, if the feedback value is valid.
+    size_t sof_package_count;  ///< Counts the SOF packages since the last
+                               ///< feedback value update.
+    uint32_t value;            ///< The current feedback value.
+    uint8_t  buffer[AUDIO_FEEDBACK_BUFFER_SIZE];  ///< The current feedback
+                                                  ///< buffer, derived from the
+                                                  ///< feedback value.
+    uint32_t last_counter_value;  ///< The counter value at the time of the
+                                  ///< previous SOF interrupt.
 };
 
 /**
@@ -224,16 +233,17 @@ struct audio_feedback {
  * audio buffer.
  */
 struct audio_playback {
-    uint16_t
-        buffer[AUDIO_BUFFER_SAMPLE_COUNT + AUDIO_MAX_PACKET_SIZE / AUDIO_SAMPLE_SIZE];  ///< The audio sample buffer.
+    uint16_t buffer[AUDIO_BUFFER_SAMPLE_COUNT +
+                    AUDIO_MAX_PACKET_SIZE /
+                        AUDIO_SAMPLE_SIZE];  ///< The audio sample buffer.
     uint16_t buffer_write_offset;  ///< The current write offset (USB).
     uint16_t buffer_read_offset;   ///< The current read offset (I2S).
-    uint16_t fill_level;           ///< The distance between read (I2S) and write (USB)
-                                   ///< memory locations, in units of audio samples.
-    bool b_streaming_enabled;      ///< True, if audio streaming is enabled, and data
-                                   ///< is being received via USB.
-    bool b_output_enabled;         ///< True, if the audio output is enabled, and data is
-                                   ///< being output via I2S.
+    uint16_t fill_level;  ///< The distance between read (I2S) and write (USB)
+                          ///< memory locations, in units of audio samples.
+    bool b_streaming_enabled;  ///< True, if audio streaming is enabled, and
+                               ///< data is being received via USB.
+    bool b_output_enabled;  ///< True, if the audio output is enabled, and data
+                            ///< is being output via I2S.
 };
 
 /**
@@ -241,12 +251,15 @@ struct audio_playback {
  * such as volume and mute.
  */
 struct audio_control {
-    uint8_t buffer[8];                                          ///< The provided control data.
-    uint8_t channel;                                            ///< The current channel mask.
-    bool b_channel_mute_states[AUDIO_CHANNEL_COUNT];            ///< Channel mute states.
-    int16_t channel_volume_levels_8q8_db[AUDIO_CHANNEL_COUNT];  ///< Channel volumes in 8.8 format (in dB).
-    int16_t local_volume_8q8_db;                                ///< The locally set volume (volume
-                                                                ///< potentiometer) in 8.8 format (in dB).
+    uint8_t buffer[8];  ///< The provided control data.
+    uint8_t channel;    ///< The current channel mask.
+    bool b_channel_mute_states[AUDIO_CHANNEL_COUNT];  ///< Channel mute states.
+    int16_t
+        channel_volume_levels_8q8_db[AUDIO_CHANNEL_COUNT];  ///< Channel volumes
+                                                            ///< in 8.8 format
+                                                            ///< (in dB).
+    int16_t local_volume_8q8_db;  ///< The locally set volume (volume
+                                  ///< potentiometer) in 8.8 format (in dB).
 };
 
 /**
@@ -262,19 +275,19 @@ struct audio_diagnostics {
  * @details Holds all important audio-related structures.
  */
 struct audio_context {
-    struct audio_feedback feedback;        ///< The audio feedback structure.
-    struct audio_playback playback;        ///< The audio playback structure.
-    struct audio_control control;          ///< The audio control structure.
+    struct audio_feedback    feedback;     ///< The audio feedback structure.
+    struct audio_playback    playback;     ///< The audio playback structure.
+    struct audio_control     control;      ///< The audio control structure.
     struct audio_diagnostics diagnostics;  ///< The audio diagnostics structure.
 };
 
-event_source_t *audio_get_event_source(void);
+event_source_t                *audio_get_event_source(void);
 volatile struct audio_context *audio_get_context(void);
 
-void audio_setup(void);
-void audio_stop_playback_cb(USBDriver *usbp);
-bool audio_requests_hook_cb(USBDriver *usbp);
-void audio_received_cb(USBDriver *usbp, usbep_t ep);
-void audio_feedback_cb(USBDriver *usbp, usbep_t ep);
+void                           audio_setup(void);
+void                           audio_stop_playback_cb(USBDriver *usbp);
+bool                           audio_requests_hook_cb(USBDriver *usbp);
+void                           audio_received_cb(USBDriver *usbp, usbep_t ep);
+void                           audio_feedback_cb(USBDriver *usbp, usbep_t ep);
 
-#endif  // _AUDIO_H_
+#endif  // SOURCE_AUDIO_AUDIO_H_

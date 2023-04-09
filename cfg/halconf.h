@@ -25,8 +25,8 @@
  * @{
  */
 
-#ifndef HALCONF_H
-#define HALCONF_H
+#ifndef CFG_HALCONF_H_
+#define CFG_HALCONF_H_
 
 #define _CHIBIOS_HAL_CONF_
 #define _CHIBIOS_HAL_CONF_VER_8_4_
@@ -548,6 +548,6 @@
 #define WSPI_USE_MUTUAL_EXCLUSION TRUE
 #endif
 
-#endif /* HALCONF_H */
+#endif  // CFG_HALCONF_H_
 
 /** @} */

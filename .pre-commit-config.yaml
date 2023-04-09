@@ -4,3 +4,16 @@ repos:
   hooks:
   - id: clang-format
     types_or: [c++, c]
+
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.4.0
+  hooks:
+  - id: trailing-whitespace
+  - id: check-case-conflict
+  - id: end-of-file-fixer
+  - id: mixed-line-ending
+
+- repo: https://github.com/cpplint/cpplint
+  rev: "1.6.1"
+  hooks:
+  - id: cpplint
