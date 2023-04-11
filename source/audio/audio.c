@@ -23,7 +23,7 @@ static volatile struct audio_context g_audio_context;
 static const I2SConfig g_i2s_config = {
     .tx_buffer = (const uint8_t *)g_audio_context.playback.buffer,
     .rx_buffer = NULL,
-    .size      = AUDIO_BUFFER_SAMPLE_COUNT,
+    .size      = AUDIO_BUFFER_LENGTH,
     .end_cb    = NULL,
     .i2spr     = SPI_I2SPR_MCKOE | (SPI_I2SPR_I2SDIV & 6)};
 
@@ -323,16 +323,14 @@ void audio_update_buffer(uint16_t received_sample_count) {
         p_playback->buffer_write_offset + received_sample_count;
 
     // Copy excessive data back to the start of the audio buffer.
-    if (new_buffer_write_offset >= AUDIO_BUFFER_SAMPLE_COUNT) {
-        for (size_t sample_index = AUDIO_BUFFER_SAMPLE_COUNT;
-             sample_index < new_buffer_write_offset; sample_index++) {
-            p_playback->buffer[sample_index - AUDIO_BUFFER_SAMPLE_COUNT] =
-                p_playback->buffer[sample_index];
-        }
+    if (new_buffer_write_offset > AUDIO_BUFFER_LENGTH) {
+        memcpy((void *)p_playback->buffer,
+               (void *)&p_playback->buffer[AUDIO_BUFFER_LENGTH],
+               new_buffer_write_offset - AUDIO_BUFFER_LENGTH);
     }
 
     p_playback->buffer_write_offset =
-        wrap_unsigned(new_buffer_write_offset, AUDIO_BUFFER_SAMPLE_COUNT);
+        wrap_unsigned(new_buffer_write_offset, AUDIO_BUFFER_LENGTH);
 }
 
 /**
@@ -345,7 +343,7 @@ void audio_update_read_offset(void) {
 
     if (I2S_DRIVER.state == I2S_ACTIVE) {
         p_playback->buffer_read_offset =
-            (uint16_t)AUDIO_BUFFER_SAMPLE_COUNT -
+            (uint16_t)AUDIO_BUFFER_LENGTH -
             (uint16_t)(I2S_DRIVER.dmatx->stream->NDTR);
     } else {
         p_playback->buffer_read_offset = 0u;
@@ -353,10 +351,10 @@ void audio_update_read_offset(void) {
 }
 
 /**
- * @brief Calculate the sample count that can be written via I2S - the buffer
- * fill level.
+ * @brief Calculate the audio buffer fill level.
  * @details This is the difference in samples between the write pointer (USB)
- * and read pointer (I2S DMA).
+ * and read pointer (I2S DMA) - the number of samples that can still be written
+ * via I2S, before the buffer runs out..
  */
 void audio_update_fill_level(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
@@ -365,7 +363,7 @@ void audio_update_fill_level(void) {
     // write pointer in the playback buffer.
     p_playback->fill_level = subtract_circular_unsigned(
         p_playback->buffer_write_offset, p_playback->buffer_read_offset,
-        AUDIO_BUFFER_SAMPLE_COUNT);
+        AUDIO_BUFFER_LENGTH);
 }
 
 /**
@@ -377,37 +375,22 @@ void audio_handle_valid_packet(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     if (p_playback->b_output_enabled) {
+        // Do nothing, when playback is already enabled.
         return;
     }
 
     if (p_playback->fill_level >= AUDIO_BUFFER_TARGET_FILL_LEVEL) {
         // Signal that the playback buffer is at or above the target fill level.
+        // This starts audio playback via I2S.
         p_playback->b_output_enabled = true;
         chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_START_PLAYBACK);
-    } else {
-#if 0
-        if (p_playback->fill_level > AUDIO_BUFFER_MAX_FILL_LEVEL) {
-            uint16_t offset =
-                p_playback->fill_level - AUDIO_BUFFER_TARGET_FILL_LEVEL;
-            p_playback->buffer_write_offset =
-                add_circular_unsigned(p_playback->buffer_write_offset, offset,
-                                      AUDIO_BUFFER_SAMPLE_COUNT);
-            audio_update_fill_level();
-        } else if (p_playback->fill_level < AUDIO_BUFFER_MIN_FILL_LEVEL) {
-            uint16_t offset =
-                AUDIO_BUFFER_TARGET_FILL_LEVEL - p_playback->fill_level;
-            p_playback->buffer_write_offset =
-                subtract_circular_unsigned(p_playback->buffer_write_offset,
-                                           offset, AUDIO_BUFFER_SAMPLE_COUNT);
-            audio_update_fill_level();
-        }
-#endif
     }
 }
 
 /**
  * @brief Disables playback, if an empty packet was received.
  * @details Emits an \a AUDIO_EVENT_STOP_PLAYBACK event.
+ * @note This internally uses I-class functions.
  */
 void audio_handle_empty_packet(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
@@ -421,7 +404,8 @@ void audio_handle_empty_packet(void) {
 
 /**
  * @brief Joint callback for when audio data was received from the host, or the
- * reception failed, in the current frame.
+ * reception failed in the current frame.
+ * @note This internally uses I-class functions.
  *
  * @param usbp A pointer to the USB driver structure.
  * @param ep The endpoint, for which the feedback was called.
@@ -443,21 +427,22 @@ void audio_received_cb(USBDriver *usbp, usbep_t ep) {
 
     chSysLockFromISR();
 
-    if (received_sample_count > 0) {
-        audio_handle_valid_packet();
-    } else {
+    if (received_sample_count == 0) {
         audio_handle_empty_packet();
+    } else {
+        audio_handle_valid_packet();
     }
 
     usbStartReceiveI(
         usbp, ep,
         (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset],
         AUDIO_MAX_PACKET_SIZE);
+
     chSysUnlockFromISR();
 }
 
 /**
- * @brief Volume levels where changed. Updates the audio context.
+ * @brief Volume levels were changed. Update the audio context with new values.
  *
  * @param usbp A pointer to the USB driver structure.
  */

@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Cortex Debug",
+            "name": "Cortex Debug - STLink",
             "cwd": "${workspaceFolder}",
             "executable": "./build/usbi2s.elf",
             "svdFile": "STM32F401.svd",
@@ -18,6 +18,19 @@
                 "interface/stlink.cfg",
                 "target/stm32f4x.cfg"
             ],
+        },
+        {
+            "name": "Cortex Debug - External",
+            "cwd": "${workspaceFolder}",
+            "executable": "./build/usbi2s.elf",
+            "svdFile": "STM32F401.svd",
+            "request": "launch",
+            "type": "cortex-debug",
+            "runToEntryPoint": "main",
+            "servertype": "external",
+            "gdbTarget": "172.27.0.1:2331",
+            "postLaunchCommands": ["monitor halt", "monitor reset"],
+            // "gdbTarget": "${env:WSL2_HOST_IP}:2331",
         }
     ]
 }

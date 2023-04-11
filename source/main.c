@@ -61,9 +61,8 @@ static THD_FUNCTION(reporting_thread, arg) {
                  p_audio_context->feedback.correction);
         chprintf(p_stream,
                  "Audio buffer fill level: %lu / %lu (margins %lu / %lu)\n",
-                 p_audio_context->playback.fill_level,
-                 AUDIO_BUFFER_SAMPLE_COUNT, AUDIO_BUFFER_MIN_FILL_LEVEL,
-                 AUDIO_BUFFER_MAX_FILL_LEVEL);
+                 p_audio_context->playback.fill_level, AUDIO_BUFFER_LENGTH,
+                 AUDIO_BUFFER_MIN_FILL_LEVEL, AUDIO_BUFFER_MAX_FILL_LEVEL);
 
         chThdSleepMilliseconds(1000);
     }

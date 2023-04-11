@@ -81,9 +81,6 @@
  */
 #define AUDIO_BUFFER_PACKET_COUNT 5u
 
-// The values below are calculated from those above, or constant. Changes should
-// not be required.
-
 /**
  * @brief The number of bits in a byte.
  */
@@ -118,8 +115,7 @@
 /**
  * @brief The number of samples in the audio buffer.
  */
-#define AUDIO_BUFFER_SAMPLE_COUNT                                              \
-    (AUDIO_PACKET_SIZE * AUDIO_BUFFER_PACKET_COUNT)
+#define AUDIO_BUFFER_LENGTH (AUDIO_PACKET_SIZE * AUDIO_BUFFER_PACKET_COUNT)
 
 /**
  * @brief The target buffer fill level in number of samples.
@@ -128,7 +124,7 @@
  * arrived and count towards the buffer level.
  */
 #define AUDIO_BUFFER_TARGET_FILL_LEVEL                                         \
-    (AUDIO_BUFFER_SAMPLE_COUNT / 2u + AUDIO_PACKET_SIZE / 2u)
+    (AUDIO_BUFFER_LENGTH / 2u + AUDIO_PACKET_SIZE / 2u)
 
 /**
  * @brief The allowed margin for the buffer fill level in samples.
@@ -136,8 +132,9 @@
  * than specified by the value, this application attempts to force the host to
  * adjust fill level by means of changing the reported feedback value.
  *
- * @note This should never happen, if the host adheres to the provided feedback,
- * and does not drop packets, or sends excessive amounts of data.
+ * @note This should never happen, if
+ * - the host adheres to the provided feedback, and does not drop packets, and
+ * - does not send excessive amounts of data.
  */
 #define AUDIO_BUFFER_FILL_LEVEL_MARGIN (AUDIO_PACKET_SIZE / 2)
 
@@ -233,7 +230,7 @@ struct audio_feedback {
  * audio buffer.
  */
 struct audio_playback {
-    uint16_t buffer[AUDIO_BUFFER_SAMPLE_COUNT +
+    uint16_t buffer[AUDIO_BUFFER_LENGTH +
                     AUDIO_MAX_PACKET_SIZE /
                         AUDIO_SAMPLE_SIZE];  ///< The audio sample buffer.
     uint16_t buffer_write_offset;  ///< The current write offset (USB).
