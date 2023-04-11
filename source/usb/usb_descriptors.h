@@ -151,7 +151,7 @@ static const uint8_t audio_configuration_descriptor_data[122] = {
     USB_DESC_BYTE(0x05),  // bDescriptorType (Endpoint).
     USB_DESC_BYTE(AUDIO_FEEDBACK_ENDPOINT | 0x80),  // bEndpointAddress.
     USB_DESC_BYTE(USB_EP_MODE_TYPE_ISOC),           // bmAttributes.
-    USB_DESC_WORD(AUDIO_FEEDBACK_BUFFER_SIZE),      // wMaxPacketSize
+    USB_DESC_WORD(AUDIO_FEEDBACK_BUFFER_MAX_SIZE),  // wMaxPacketSize
     USB_DESC_BYTE(USB_DESC_FS_BINTERVAL),           // bInterval (1 ms).
     USB_DESC_BYTE(USB_DESC_FEEDBACK_PERIOD),        // bRefresh.
     USB_DESC_BYTE(0x00),                            // bSynchAddress (none).

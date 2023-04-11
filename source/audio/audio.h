@@ -79,7 +79,7 @@
  * @details Larger numbers allow more tolerance for changes in provided sample
  * rate, but lead to more latency.
  */
-#define AUDIO_BUFFER_PACKET_COUNT 5u
+#define AUDIO_BUFFER_PACKET_COUNT 2u
 
 /**
  * @brief The number of bits in a byte.
@@ -136,7 +136,7 @@
  * - the host adheres to the provided feedback, and does not drop packets, and
  * - does not send excessive amounts of data.
  */
-#define AUDIO_BUFFER_FILL_LEVEL_MARGIN (AUDIO_PACKET_SIZE / 2)
+#define AUDIO_BUFFER_FILL_LEVEL_MARGIN (AUDIO_PACKET_SIZE / 8)
 
 /**
  * @brief The lower boundary for the buffer fill level in samples.
@@ -168,6 +168,11 @@
  * kHz.
  */
 #define AUDIO_FEEDBACK_BUFFER_SIZE 3u
+
+/**
+ * @brief Maximum supported size for a feedback packet.
+ */
+#define AUDIO_FEEDBACK_BUFFER_MAX_SIZE 4u
 
 // Sanity checks.
 

@@ -324,9 +324,11 @@ void audio_update_buffer(uint16_t received_sample_count) {
 
     // Copy excessive data back to the start of the audio buffer.
     if (new_buffer_write_offset > AUDIO_BUFFER_LENGTH) {
-        memcpy((void *)p_playback->buffer,
-               (void *)&p_playback->buffer[AUDIO_BUFFER_LENGTH],
-               new_buffer_write_offset - AUDIO_BUFFER_LENGTH);
+        for (size_t sample_index = AUDIO_BUFFER_LENGTH;
+             sample_index < new_buffer_write_offset; sample_index++) {
+            p_playback->buffer[sample_index - AUDIO_BUFFER_LENGTH] =
+                p_playback->buffer[sample_index];
+        }
     }
 
     p_playback->buffer_write_offset =
