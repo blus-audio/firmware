@@ -154,6 +154,32 @@ struct tas2780_context {
     (0x03u << TAS2780_TDM_CFG2_IVMON_LEN_POS)
 #define TAS2780_TDM_CFG2_IVMON_LEN_DEFAULT (0x00u)
 
+// NG_CFG0 register (noise gate)
+#define TAS2780_NG_CFG0_REG           (0x43u)
+
+#define TAS2780_NG_CFG0_RES_POS       (0u)
+#define TAS2780_NG_CFG0_RES_MASK      (0x03u << TAS2780_NG_CFG0_RES_POS)
+#define TAS2780_NG_CFG0_RES_DEFAULT   (0x01u)
+
+#define TAS2780_NG_CFG0_NG_EN_POS     (2u)
+#define TAS2780_NG_CFG0_NG_EN_MASK    (0x01u << TAS2780_NG_CFG0_NG_EN_POS)
+#define TAS2780_NG_CFG0_NG_EN_DEFAULT (0x01u)
+
+#define TAS2780_NG_CFG0_NG_LVL_POS    (3u)
+#define TAS2780_NG_CFG0_NG_LVL_MASK   (0x03u << TAS2780_NG_CFG0_NG_LVL_POS)
+#define TAS2780_NG_CFG0_NG_LVL_DEFAULT                                         \
+    (0x00u)  ///< 0x00 ... 0x03 (-90 dBFS ... -120 dBFS)
+
+#define TAS2780_NG_CFG0_NG_HYST_POS     (5u)
+#define TAS2780_NG_CFG0_NG_HYST_MASK    (0x03u << TAS2780_NG_CFG0_NG_HYST_POS)
+#define TAS2780_NG_CFG0_NG_HYST_DEFAULT (0x05u)
+
+// INT_LIVE1 register
+#define TAS2780_INT_LIVE1_REG         (0x43u)
+
+#define TAS2780_INT_LIVE1_IL_NGA_POS  (2u)
+#define TAS2780_INT_LIVE1_IL_NGA_MASK (0x01u << TAS2780_INT_LIVE1_IL_NGA_POS)
+
 // DVC (digital volume control) register
 #define TAS2780_DVC_REG (0x1Au)
 
@@ -181,5 +207,6 @@ void tas2780_set_volume_all(int16_t              volume_8q8_db,
                             enum tas2780_channel channel);
 void tas2780_init(struct tas2780_context *p_context, uint16_t device_address);
 void tas2780_ensure_active_all(void);
+uint8_t tas2780_noise_gate_mask_all(void);
 
 #endif  // SOURCE_TAS2780_TAS2780_H_

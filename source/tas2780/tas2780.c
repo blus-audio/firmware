@@ -223,6 +223,19 @@ void tas2780_setup(struct tas2780_context *p_context) {
                          TAS2780_TDM_CFG2_RX_SCFG_MASK);
     tas2780_write(p_context, p_write_buffer, 2);
 
+    // Set up noise gate.
+    p_write_buffer[0] = TAS2780_NG_CFG0_REG;
+    p_write_buffer[1] =
+        ((TAS2780_NG_CFG0_RES_DEFAULT << TAS2780_NG_CFG0_RES_POS) &
+         TAS2780_NG_CFG0_RES_MASK) |
+        ((TAS2780_NG_CFG0_NG_EN_DEFAULT << TAS2780_NG_CFG0_NG_EN_POS) &
+         TAS2780_NG_CFG0_NG_EN_MASK) |
+        ((TAS2780_NG_CFG0_NG_LVL_DEFAULT << TAS2780_NG_CFG0_NG_LVL_POS) &
+         TAS2780_NG_CFG0_NG_LVL_MASK) |
+        ((TAS2780_NG_CFG0_NG_HYST_DEFAULT << TAS2780_NG_CFG0_NG_HYST_POS) &
+         TAS2780_NG_CFG0_NG_HYST_MASK);
+    tas2780_write(p_context, p_write_buffer, 2);
+
     // Enable active mode without mute.
     p_write_buffer[0] = TAS2780_MODE_CTRL_REG;
     p_write_buffer[1] =
@@ -272,8 +285,7 @@ void tas2780_set_volume_all(int16_t              volume_8q8_db,
 }
 
 /**
- * @brief Checks the amplifier state for being active without mute, and enforces
- * it.
+ * @brief Check the amplifier state to be active without mute, and enforce it.
  *
  * @param p_context The pointer to the amplifier context.
  */
@@ -282,9 +294,7 @@ void tas2780_ensure_active(struct tas2780_context *p_context) {
     uint8_t *p_read_buffer  = p_context->read_buffer;
 
     p_write_buffer[0]       = TAS2780_MODE_CTRL_REG;
-    p_write_buffer[1] =
-        ((0x00 << TAS2780_MODE_CTRL_MODE_POS) & TAS2780_MODE_CTRL_MODE_MASK);
-    tas2780_write(p_context, p_write_buffer, 2u);
+    tas2780_write(p_context, p_write_buffer, 1u);
     tas2780_read(p_context, p_read_buffer, 1u);
 
     uint8_t state = (p_read_buffer[0] & TAS2780_MODE_CTRL_MODE_MASK) >>
@@ -307,4 +317,31 @@ void tas2780_ensure_active_all(void) {
          device_index++) {
         tas2780_ensure_active(&g_tas2780_contexts[device_index]);
     }
+}
+
+bool tas2780_noise_gate_detected(struct tas2780_context *p_context) {
+    uint8_t *p_write_buffer = p_context->write_buffer;
+    uint8_t *p_read_buffer  = p_context->read_buffer;
+
+    p_write_buffer[0]       = TAS2780_INT_LIVE1_REG;
+    tas2780_write(p_context, p_write_buffer, 1u);
+    tas2780_read(p_context, p_read_buffer, 1u);
+
+    uint8_t state = (p_read_buffer[0] & TAS2780_INT_LIVE1_IL_NGA_MASK) >>
+                    TAS2780_INT_LIVE1_IL_NGA_POS;
+
+    return (bool)state;
+}
+
+uint8_t tas2780_noise_gate_mask_all(void) {
+    uint8_t noise_gate_mask = 0u;
+
+    for (size_t device_index = 0; device_index < TAS2780_DEVICE_COUNT;
+         device_index++) {
+        if (tas2780_noise_gate_detected(&g_tas2780_contexts[device_index])) {
+            noise_gate_mask |= (1u << device_index);
+        }
+    }
+
+    return noise_gate_mask;
 }

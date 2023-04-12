@@ -49,6 +49,9 @@ static THD_FUNCTION(reporting_thread, arg) {
         adcsample_t adc_sample;
         adcConvert(&ADCD1, &adc_conversion_group, &adc_sample, 1);
 
+        uint8_t noise_gate_mask = tas2780_noise_gate_mask_all();
+        chprintf(p_stream, "Noise gate: %u\n", noise_gate_mask);
+
         chprintf(p_stream, "Potentiometer: %lu\n", adc_sample);
         chprintf(
             p_stream, "Volume: %li / %li dB\n",
