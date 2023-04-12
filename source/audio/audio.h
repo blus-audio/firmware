@@ -79,7 +79,7 @@
  * @details Larger numbers allow more tolerance for changes in provided sample
  * rate, but lead to more latency.
  */
-#define AUDIO_BUFFER_PACKET_COUNT 2u
+#define AUDIO_BUFFER_PACKET_COUNT 3u
 
 /**
  * @brief The number of bits in a byte.
@@ -136,7 +136,7 @@
  * - the host adheres to the provided feedback, and does not drop packets, and
  * - does not send excessive amounts of data.
  */
-#define AUDIO_BUFFER_FILL_LEVEL_MARGIN (AUDIO_PACKET_SIZE / 8)
+#define AUDIO_BUFFER_FILL_LEVEL_MARGIN (AUDIO_PACKET_SIZE / 4)
 
 /**
  * @brief The lower boundary for the buffer fill level in samples.
@@ -159,7 +159,7 @@
  *
  * For example, 16 represents a reported offset of 1.024 Hz - a mild adjustment.
  */
-#define AUDIO_FEEDBACK_CORRECTION_OFFSET (64u)
+#define AUDIO_FEEDBACK_CORRECTION_OFFSET (256u)
 
 /**
  * @brief The size of the packets for the feedback endpoint.
@@ -169,19 +169,14 @@
  */
 #define AUDIO_FEEDBACK_BUFFER_SIZE 3u
 
-/**
- * @brief Maximum supported size for a feedback packet.
- */
-#define AUDIO_FEEDBACK_BUFFER_MAX_SIZE 4u
-
 // Sanity checks.
 
-#if AUDIO_MAX_PACKET_SIZE <= AUDIO_PACKET_SIZE
+#if AUDIO_MAX_PACKET_SIZE < AUDIO_PACKET_SIZE
 #error                                                                         \
     "The maximum audio packet size should be larger than the regular packet size."
 #endif
 
-#if AUDIO_BUFFER_MIN_FILL_LEVEL >= AUDIO_BUFFER_MAX_FILL_LEVEL
+#if AUDIO_BUFFER_MIN_FILL_LEVEL > AUDIO_BUFFER_MAX_FILL_LEVEL
 #error "Inconsistent settings, sample count tolerance likely too large."
 #endif
 
