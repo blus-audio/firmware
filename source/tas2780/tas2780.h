@@ -13,7 +13,7 @@
 enum tas2780_channel {
     TAS2780_CHANNEL_LEFT,   ///< The left channel.
     TAS2780_CHANNEL_RIGHT,  ///< The right channel.
-    TAS2780_CHANNEL_BOTH    ///< Both channels.
+    TAS2780_CHANNEL_BOTH,   ///< Both channels.
 };
 
 /**
@@ -44,6 +44,7 @@ struct tas2780_context {
     uint8_t  write_buffer[2];  ///< The write buffer for I2C transactions.
     uint8_t  read_buffer[2];   ///< The read buffer for I2C transactions.
     uint16_t device_address;   ///< The I2C device address.
+    uint8_t tdm_slot_index;  ///< The TDM slot index on which this device plays.
     enum tas2780_channel
         channel;  ///< The audio channel (left/right). When TAS2780_CHANNEL_BOTH
                   ///< is selected, sets up stereo mixing.
@@ -130,29 +131,46 @@ struct tas2780_context {
 #define TAS2780_DC_BLK0_VBAT1S_MODE_DEFAULT (0x00u)
 
 // TDM_CFG2 register
-#define TAS2780_TDM_CFG2_REG                     (0x0Au)
+#define TAS2780_TDM_CFG2_REG             (0x0Au)
 
-#define TAS2780_TDM_CFG2_RX_SLEN_POS             (0u)
-#define TAS2780_TDM_CFG2_RX_SLEN_MASK            (0x03u << TAS2780_TDM_CFG2_RX_SLEN_POS)
-#define TAS2780_TDM_CFG2_RX_SLEN_DEFAULT         (0x02u)
+#define TAS2780_TDM_CFG2_RX_SLEN_POS     (0u)
+#define TAS2780_TDM_CFG2_RX_SLEN_MASK    (0x03u << TAS2780_TDM_CFG2_RX_SLEN_POS)
+#define TAS2780_TDM_CFG2_RX_SLEN_DEFAULT (0x02u)
 
-#define TAS2780_TDM_CFG2_RX_WLEN_POS             (2u)
-#define TAS2780_TDM_CFG2_RX_WLEN_MASK            (0x03u << TAS2780_TDM_CFG2_RX_WLEN_POS)
-#define TAS2780_TDM_CFG2_RX_WLEN_DEFAULT         (0x02u)
+#define TAS2780_TDM_CFG2_RX_WLEN_POS     (2u)
+#define TAS2780_TDM_CFG2_RX_WLEN_MASK    (0x03u << TAS2780_TDM_CFG2_RX_WLEN_POS)
+#define TAS2780_TDM_CFG2_RX_WLEN_DEFAULT (0x02u)
 
-#define TAS2780_TDM_CFG2_RX_SCFG_POS             (4u)
-#define TAS2780_TDM_CFG2_RX_SCFG_MASK            (0x03u << TAS2780_TDM_CFG2_RX_SCFG_POS)
-#define TAS2780_TDM_CFG2_RX_SCFG_DEFAULT         (0x00u)
+#define TAS2780_TDM_CFG2_RX_SCFG_MONO_I2C                                      \
+    (0x0u)  ///< TDM channel selection by I2C address.
+#define TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT                                     \
+    (0x1u)  ///< TDM channel selection: left.
+#define TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT                                    \
+    (0x2u)  ///< TDM channel selection: right.
+#define TAS2780_TDM_CFG2_RX_SCFG_MONO_STEREO_MIX                               \
+    (0x3u)  ///< TDM channel selection: stereo mix of left/right.
 
-#define TAS2780_TDM_CFG2_RX_SCFG_MONO_I2C        (0x0u)
-#define TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT       (0x1u)
-#define TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT      (0x2u)
-#define TAS2780_TDM_CFG2_RX_SCFG_MONO_STEREO_MIX (0x3u)
+#define TAS2780_TDM_CFG2_RX_SCFG_POS     (4u)
+#define TAS2780_TDM_CFG2_RX_SCFG_MASK    (0x03u << TAS2780_TDM_CFG2_RX_SCFG_POS)
+#define TAS2780_TDM_CFG2_RX_SCFG_DEFAULT (TAS2780_TDM_CFG2_RX_SCFG_MONO_I2C)
 
-#define TAS2780_TDM_CFG2_IVMON_LEN_POS           (6u)
+#define TAS2780_TDM_CFG2_IVMON_LEN_POS   (6u)
 #define TAS2780_TDM_CFG2_IVMON_LEN_MASK                                        \
     (0x03u << TAS2780_TDM_CFG2_IVMON_LEN_POS)
 #define TAS2780_TDM_CFG2_IVMON_LEN_DEFAULT (0x00u)
+
+// TDM_CFG3 register
+#define TAS2780_TDM_CFG3_REG           (0x0Cu)
+
+#define TAS2780_TDM_CFG3_RX_SLOT_L_POS (0u)
+#define TAS2780_TDM_CFG3_RX_SLOT_L_MASK                                        \
+    (0x0Fu << TAS2780_TDM_CFG3_RX_SLOT_L_POS)
+#define TAS2780_TDM_CFG3_RX_SLOT_L_DEFAULT (0x00u)
+
+#define TAS2780_TDM_CFG3_RX_SLOT_R_POS     (4u)
+#define TAS2780_TDM_CFG3_RX_SLOT_R_MASK                                        \
+    (0x0Fu << TAS2780_TDM_CFG3_RX_SLOT_R_POS)
+#define TAS2780_TDM_CFG3_RX_SLOT_R_DEFAULT (0x01u)
 
 // NG_CFG0 register (noise gate)
 #define TAS2780_NG_CFG0_REG           (0x43u)

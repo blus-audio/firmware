@@ -46,6 +46,8 @@ static THD_FUNCTION(reporting_thread, arg) {
     adcStart(&ADCD1, NULL);
 
     while (true) {
+        tas2780_ensure_active_all();
+
         adcsample_t adc_sample;
         adcConvert(&ADCD1, &adc_conversion_group, &adc_sample, 1);
 
@@ -92,9 +94,6 @@ int main(void) {
     // Setup amplifiers.
     i2cStart(&I2CD1, &g_tas2780_i2c_config);
     tas2780_setup_all();
-
-    chThdSleepMilliseconds(200);
-    tas2780_ensure_active_all();
 
     // Registers this thread for audio events.
     static event_listener_t audio_event_listener;

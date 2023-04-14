@@ -16,18 +16,20 @@ static struct tas2780_context g_tas2780_contexts[TAS2780_DEVICE_COUNT];
  * @param p_context The pointer to the amplifier context.
  * @param channel The channel that the amplifier shall play.
  * @param device_address The amplifiers I2C device address.
+ * @param tdm_slot_index The TDM slot index, on which the amplifier plays.
  * @param analog_gain_setting The analog gain setting between 0x00 and 0x14,
  * where 0x14 is 10 dB louder than 0x00.
  */
 void tas2780_init_context(struct tas2780_context *p_context,
                           enum tas2780_channel channel, uint16_t device_address,
-                          uint8_t analog_gain_setting) {
+                          uint8_t tdm_slot_index, uint8_t analog_gain_setting) {
     p_context->analog_gain_setting =
         analog_gain_setting > TAS2780_CHNL_0_AMP_LEVEL_MAX
             ? TAS2780_CHNL_0_AMP_LEVEL_MAX
             : analog_gain_setting;
     p_context->channel        = channel;
     p_context->device_address = device_address;
+    p_context->tdm_slot_index = tdm_slot_index;
 }
 
 /**
@@ -97,6 +99,9 @@ void tas2780_set_volume(struct tas2780_context *p_context,
  * @param p_context The pointer to the amplifier context.
  */
 void tas2780_setup(struct tas2780_context *p_context) {
+    // FIXME: Seperate into functions.
+    // FIXME: Take into account the page of registers. Currently, it is assumed
+    // that the amplifier is resting at page 0 after setup.
     uint8_t *p_write_buffer = p_context->write_buffer;
 
     // Go to page 0.
@@ -194,36 +199,79 @@ void tas2780_setup(struct tas2780_context *p_context) {
     p_write_buffer[1] = 0x0Eu;  // 6.5 V
     tas2780_write(p_context, p_write_buffer, 2);
 
-    // Determine the configured audio channel (left, right, stereo mix).
-    uint8_t tdm_cfg2_rx_scfg = TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT;
+    // The TDM_CFG2 register content - initially without channel information.
+    uint8_t tdm_cfg2 =
+        ((0x02u << TAS2780_TDM_CFG2_RX_SLEN_POS) &
+         TAS2780_TDM_CFG2_RX_SLEN_MASK) |
+        ((0x02u << TAS2780_TDM_CFG2_RX_WLEN_POS) &
+         TAS2780_TDM_CFG2_RX_WLEN_MASK) |
+        ((TAS2780_TDM_CFG2_RX_SCFG_DEFAULT << TAS2780_TDM_CFG2_RX_SCFG_POS) &
+         TAS2780_TDM_CFG2_RX_SCFG_MASK);
+
+    // The TDM_CFG3 register content.
+    uint8_t tdm_cfg3;
+
+    // Determine the configured audio channel (left, or right).
     switch (p_context->channel) {
         case TAS2780_CHANNEL_LEFT:
-            tdm_cfg2_rx_scfg = TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT;
+            tdm_cfg2 |= ((TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT
+                          << TAS2780_TDM_CFG2_RX_SCFG_POS) &
+                         TAS2780_TDM_CFG2_RX_SCFG_MASK);
+
+            // Set the specified TDM slot for the left channel.
+            // Leave the TDM slot at default for the right channel.
+            tdm_cfg3 =
+                ((p_context->tdm_slot_index << TAS2780_TDM_CFG3_RX_SLOT_L_POS) &
+                 TAS2780_TDM_CFG3_RX_SLOT_L_MASK) |
+                ((TAS2780_TDM_CFG3_RX_SLOT_R_DEFAULT
+                  << TAS2780_TDM_CFG3_RX_SLOT_R_POS) &
+                 TAS2780_TDM_CFG3_RX_SLOT_R_MASK);
             break;
 
         case TAS2780_CHANNEL_RIGHT:
-            tdm_cfg2_rx_scfg = TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT;
-            break;
+            tdm_cfg2 |= ((TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT
+                          << TAS2780_TDM_CFG2_RX_SCFG_POS) &
+                         TAS2780_TDM_CFG2_RX_SCFG_MASK);
 
-        case TAS2780_CHANNEL_BOTH:
-            tdm_cfg2_rx_scfg = TAS2780_TDM_CFG2_RX_SCFG_MONO_STEREO_MIX;
+            // Set the specified TDM slot for the right channel.
+            // Leave the TDM slot at default for the left channel.
+            tdm_cfg3 =
+                ((p_context->tdm_slot_index << TAS2780_TDM_CFG3_RX_SLOT_R_POS) &
+                 TAS2780_TDM_CFG3_RX_SLOT_R_MASK) |
+                ((TAS2780_TDM_CFG3_RX_SLOT_L_DEFAULT
+                  << TAS2780_TDM_CFG3_RX_SLOT_L_POS) &
+                 TAS2780_TDM_CFG3_RX_SLOT_L_MASK);
             break;
 
         default:
+            // Default channel: defined by I2C address.
+            tdm_cfg2 |= ((TAS2780_TDM_CFG2_RX_SCFG_DEFAULT
+                          << TAS2780_TDM_CFG2_RX_SCFG_POS) &
+                         TAS2780_TDM_CFG2_RX_SCFG_MASK);
+
+            // Default TDM slot settings
+            // - left: 0
+            // - right: 1
+            tdm_cfg3 = ((TAS2780_TDM_CFG3_RX_SLOT_L_DEFAULT
+                         << TAS2780_TDM_CFG3_RX_SLOT_L_POS) &
+                        TAS2780_TDM_CFG3_RX_SLOT_L_MASK) |
+                       ((TAS2780_TDM_CFG3_RX_SLOT_R_DEFAULT
+                         << TAS2780_TDM_CFG3_RX_SLOT_R_POS) &
+                        TAS2780_TDM_CFG3_RX_SLOT_R_MASK);
             break;
     }
 
     // Set up the determined audio channel.
     p_write_buffer[0] = TAS2780_TDM_CFG2_REG;
-    p_write_buffer[1] = ((0x02u << TAS2780_TDM_CFG2_RX_SLEN_POS) &
-                         TAS2780_TDM_CFG2_RX_SLEN_MASK) |
-                        ((0x02u << TAS2780_TDM_CFG2_RX_WLEN_POS) &
-                         TAS2780_TDM_CFG2_RX_WLEN_MASK) |
-                        ((tdm_cfg2_rx_scfg << TAS2780_TDM_CFG2_RX_SCFG_POS) &
-                         TAS2780_TDM_CFG2_RX_SCFG_MASK);
+    p_write_buffer[1] = tdm_cfg2;
     tas2780_write(p_context, p_write_buffer, 2);
 
-    // Set up noise gate.
+    // Set up the matching TDM slot.
+    p_write_buffer[0] = TAS2780_TDM_CFG3_REG;
+    p_write_buffer[1] = tdm_cfg3;
+    tas2780_write(p_context, p_write_buffer, 2);
+
+    // Set up the noise gate.
     p_write_buffer[0] = TAS2780_NG_CFG0_REG;
     p_write_buffer[1] =
         ((TAS2780_NG_CFG0_RES_DEFAULT << TAS2780_NG_CFG0_RES_POS) &
@@ -256,7 +304,8 @@ void tas2780_setup_all(void) {
          device_index++) {
         tas2780_init_context(&g_tas2780_contexts[device_index],
                              TAS2780_DEVICE_CHANNELS[device_index],
-                             TAS2780_DEVICE_ADDRESSES[device_index], 0x00);
+                             TAS2780_DEVICE_ADDRESSES[device_index],
+                             TAS2780_TDM_SLOT_INDICES[device_index], 0x00);
         tas2780_setup(&g_tas2780_contexts[device_index]);
     }
 }
@@ -303,7 +352,8 @@ void tas2780_ensure_active(struct tas2780_context *p_context) {
     if (!((state == TAS2780_MODE_CTRL_MODE_ACTIVE_WITHOUT_MUTE) ||
           (state == TAS2780_MODE_CTRL_MODE_ACTIVE_WITH_MUTE))) {
         p_write_buffer[0] = TAS2780_MODE_CTRL_REG;
-        p_write_buffer[1] = ((0x00 << TAS2780_MODE_CTRL_MODE_POS) &
+        p_write_buffer[1] = ((TAS2780_MODE_CTRL_MODE_ACTIVE_WITHOUT_MUTE
+                              << TAS2780_MODE_CTRL_MODE_POS) &
                              TAS2780_MODE_CTRL_MODE_MASK);
         tas2780_write(p_context, p_write_buffer, 2);
     }
@@ -319,6 +369,17 @@ void tas2780_ensure_active_all(void) {
     }
 }
 
+/**
+ * @brief Determine, whether or not the noise gate is active.
+ * @details An active noise gate means that the amplifier goes into an
+ * energy-saving state, when it does not detect a significant input level. The
+ * threshold input level can be adjusted between -90 dBFS and -120 dBFS.
+ *
+ * @param p_context The pointer to the amplifier context.
+ * @return true if the noise gate is active (the amplifier does not output a
+ * signal).
+ * @return false if the noise gate is inactive.
+ */
 bool tas2780_noise_gate_detected(struct tas2780_context *p_context) {
     uint8_t *p_write_buffer = p_context->write_buffer;
     uint8_t *p_read_buffer  = p_context->read_buffer;
@@ -333,6 +394,14 @@ bool tas2780_noise_gate_detected(struct tas2780_context *p_context) {
     return (bool)state;
 }
 
+/**
+ * @brief Get the noise gate mask for all amplifiers (up to eight)
+ * @details Each bit indicates, whether the noise gate is active (1) or inactive
+ * (0) for an amplifier. The LSB represents the first amplifier in the array
+ * \a g_tas2780_contexts .
+ *
+ * @return uint8_t The noise gate mask.
+ */
 uint8_t tas2780_noise_gate_mask_all(void) {
     uint8_t noise_gate_mask = 0u;
 
