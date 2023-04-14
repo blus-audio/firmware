@@ -28,33 +28,38 @@ static THD_FUNCTION(reporting_thread, arg) {
     sdStart(&SD2, NULL);
     chRegSetThreadName("reporting");
 
+    // ADC conversion group:
+    // - continuous conversion
+    // - 480 samples conversion time
+    // - Channel 9
     static const ADCConversionGroup adc_conversion_group = {
-        FALSE,
-        1,  // ADC_GRP1_NUM_CHANNELS,
-        NULL,
-        NULL,            // adcerrorcallback,
-        0,               /* CR1 */
-        ADC_CR2_SWSTART, /* CR2 */
-        ADC_SMPR2_SMP_AN9(ADC_SAMPLE_480),
-        0, /* SMPR2 */
-        0, /* HTR */
-        0, /* LTR */
-        0, /* SQR1 */
-        0, /* SQR2 */
-        ADC_SQR3_SQ1_N(ADC_CHANNEL_IN9)};
+        .circular     = TRUE,
+        .num_channels = 1,
+        .end_cb       = NULL,
+        .error_cb     = NULL,
+        .cr1          = 0u,
+        .cr2          = ADC_CR2_SWSTART,
+        .smpr1        = 0u,
+        .smpr2        = ADC_SMPR2_SMP_AN9(ADC_SAMPLE_480),
+        .htr          = 0u,
+        .ltr          = 0u,
+        .sqr1         = 0u,
+        .sqr2         = 0u,
+        .sqr3         = ADC_SQR3_SQ1_N(ADC_CHANNEL_IN9)};
 
+    // Start continuous conversion.
+    adcsample_t adc_sample;
     adcStart(&ADCD1, NULL);
+    adcStartConversion(&ADCD1, &adc_conversion_group, &adc_sample, 1u);
 
     while (true) {
         tas2780_ensure_active_all();
 
-        adcsample_t adc_sample;
-        adcConvert(&ADCD1, &adc_conversion_group, &adc_sample, 1);
-
         uint8_t noise_gate_mask = tas2780_noise_gate_mask_all();
         chprintf(p_stream, "Noise gate: %u\n", noise_gate_mask);
 
-        chprintf(p_stream, "Potentiometer: %lu\n", adc_sample);
+        chprintf(p_stream, "Potentiometer: %u\n",
+                 adc_sample >> 4);  // Convert to an 8 bit number.
         chprintf(
             p_stream, "Volume: %li / %li dB\n",
             (p_audio_context->control.channel_volume_levels_8q8_db[0] >> 8),
