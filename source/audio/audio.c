@@ -118,6 +118,15 @@ void audio_init_context(volatile struct audio_context *p_context) {
  * sink recognizes this condition, it should adjust the reported Ff value to
  * correct it. This may also be necessary to compensate for relative clock
  * drifts."
+ *
+ * FIXME: On Windows, pausing audio for a while does not immediately switch
+ * alternate modes to zero-bandwidth, but leads to the generation of zero-length
+ * audio packets. This application can detect zero packets, and stops playback,
+ * and the transmission of feedback values. When the audio is started again,
+ * there seems to be host-side confusion about the size of audio packets that
+ * need to be transmitted - they are usually too small in the beginning. Thus,
+ * the audio buffer may underrun, which needs to be compensated manually. This
+ * audio feedback correction function is a workaround for that symptom.
  */
 void audio_feedback_correct(void) {
     volatile struct audio_feedback    *p_feedback = &g_audio_context.feedback;
@@ -178,6 +187,9 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
     volatile struct audio_feedback *p_feedback = &g_audio_context.feedback;
 
     OSAL_IRQ_PROLOGUE();
+
+    chDbgAssert(I2S_DRIVER.state == I2S_ACTIVE,
+                "SOF period capture not possible with I2S inactive.");
 
     uint32_t counter_value         = TIM2->CNT;
     uint32_t timer_status_register = TIM2->SR;
@@ -242,9 +254,14 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
 /**
  * @brief Set up the timer peripheral for counting USB start of frame (SOF)
  * periods.
+ * @note Only start after the I2S peripheral is running. Its MCLK output clocks
+ * this timer.
  */
 void audio_start_sof_capture(void) {
     chSysLock();
+    chDbgAssert(I2S_DRIVER.state == I2S_ACTIVE,
+                "Only start SOF capture after the I2S driver.");
+
     // Reset TIM2 instance.
     rccResetTIM2();
     nvicEnableVector(STM32_TIM2_NUMBER, STM32_IRQ_TIM2_PRIORITY);
@@ -733,6 +750,10 @@ static THD_FUNCTION(audio_thread, arg) {
     while (true) {
         chEvtWaitOne(AUDIO_EVENT);
         eventflags_t event_flags = chEvtGetAndClearFlags(&audio_event_listener);
+
+        // The SOF capture (for feedback calculation) must be started
+        // after/stopped before the I2S peripheral - its master clock output
+        // is required for counting the SOF interval.
 
         if (event_flags & AUDIO_EVENT_START_PLAYBACK) {
             i2sStartExchange(&I2S_DRIVER);

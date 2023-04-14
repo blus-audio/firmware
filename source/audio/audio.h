@@ -132,11 +132,11 @@
  * than specified by the value, this application attempts to force the host to
  * adjust fill level by means of changing the reported feedback value.
  *
- * @note This should never happen, if
+ * @note This should not occur, if
  * - the host adheres to the provided feedback, and does not drop packets, and
  * - does not send excessive amounts of data.
  */
-#define AUDIO_BUFFER_FILL_LEVEL_MARGIN (AUDIO_PACKET_SIZE / 4)
+#define AUDIO_BUFFER_FILL_LEVEL_MARGIN (AUDIO_PACKET_SIZE / 4u)
 
 /**
  * @brief The lower boundary for the buffer fill level in samples.
@@ -181,17 +181,17 @@
 #endif
 
 // Endpoint numbers.
-#define AUDIO_PLAYBACK_ENDPOINT 0x01
-#define AUDIO_FEEDBACK_ENDPOINT 0x02
+#define AUDIO_PLAYBACK_ENDPOINT 0x01u
+#define AUDIO_FEEDBACK_ENDPOINT 0x02u
 
 // Interface numbers.
-#define AUDIO_CONTROL_INTERFACE   0
-#define AUDIO_STREAMING_INTERFACE 1
+#define AUDIO_CONTROL_INTERFACE   0u
+#define AUDIO_STREAMING_INTERFACE 1u
 
 // Functional unit numbers.
-#define AUDIO_INPUT_UNIT_ID    1
-#define AUDIO_FUNCTION_UNIT_ID 2
-#define AUDIO_OUTPUT_UNIT_ID   3
+#define AUDIO_INPUT_UNIT_ID    1u
+#define AUDIO_FUNCTION_UNIT_ID 2u
+#define AUDIO_OUTPUT_UNIT_ID   3u
 
 /**
  * @brief The state of the feedback correction.
