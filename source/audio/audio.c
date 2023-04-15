@@ -159,13 +159,11 @@ void audio_feedback_correct(void) {
 
     if (p_feedback->correction == AUDIO_FEEDBACK_CORRECTION_STATE_OFF) {
         if (p_playback->fill_level > AUDIO_BUFFER_MAX_FILL_LEVEL) {
-            // The fill level is too high, compensate by means of lower feedback
-            // value.
+            // The fill level is too high, compensate by means of lower feedback value.
             p_feedback->correction = AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE;
             p_diagnostics->error_count++;
         } else if (p_playback->fill_level < AUDIO_BUFFER_MIN_FILL_LEVEL) {
-            // The fill level is too low, compensate by means of higher feedback
-            // value.
+            // The fill level is too low, compensate by means of higher feedback value.
             p_feedback->correction = AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE;
             p_diagnostics->error_count++;
         }

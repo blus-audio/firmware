@@ -219,8 +219,7 @@ struct audio_feedback {
 };
 
 /**
- * @brief A structure that holds the state of audio playback, as well as the
- * audio buffer.
+ * @brief A structure that holds the state of audio playback, as well as the audio buffer.
  */
 struct audio_playback {
     uint16_t buffer[AUDIO_BUFFER_LENGTH + AUDIO_MAX_PACKET_SIZE / AUDIO_SAMPLE_SIZE];  ///< The audio sample buffer.
