@@ -1,4 +1,14 @@
 // Copyright 2023 elagil
+
+/**
+ * @file
+ * @brief   USB Audio (UAC 1.0) module headers.
+ * @details Contains functionality for handling UAC 1.0 audio streaming.
+ *
+ * @addtogroup audio
+ * @{
+ */
+
 #ifndef SOURCE_AUDIO_AUDIO_H_
 #define SOURCE_AUDIO_AUDIO_H_
 
@@ -276,3 +286,7 @@ void            audio_received_cb(USBDriver *usbp, usbep_t ep);
 void            audio_feedback_cb(USBDriver *usbp, usbep_t ep);
 
 #endif  // SOURCE_AUDIO_AUDIO_H_
+
+/**
+ * @}
+ */

@@ -1,4 +1,14 @@
 // Copyright 2023 elagil
+
+/**
+ * @file
+ * @brief   USB Audio (UAC 1.0) module.
+ * @details Contains functionality for handling UAC 1.0 audio streaming.
+ *
+ * @addtogroup audio
+ * @{
+ */
+
 #include "audio.h"
 
 #include <string.h>
@@ -754,3 +764,7 @@ void audio_setup(void) {
     audio_init_context(&g_audio_context);
     chThdCreateStatic(wa_audio_thread, sizeof(wa_audio_thread), NORMALPRIO, audio_thread, NULL);
 }
+
+/**
+ * @}
+ */

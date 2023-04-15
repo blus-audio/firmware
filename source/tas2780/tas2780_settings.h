@@ -1,4 +1,13 @@
 // Copyright 2023 elagil
+
+/**
+ * @file
+ * @brief   TAS2780 amplifier settings.
+ *
+ * @addtogroup tas2780
+ * @{
+ */
+
 #ifndef SOURCE_TAS2780_TAS2780_SETTINGS_H_
 #define SOURCE_TAS2780_TAS2780_SETTINGS_H_
 
@@ -26,3 +35,7 @@ static const enum tas2780_channel TAS2780_DEVICE_CHANNELS[TAS2780_DEVICE_COUNT] 
 static const uint8_t TAS2780_TDM_SLOT_INDICES[TAS2780_DEVICE_COUNT] = {0u, 1u, 2u, 3u};
 
 #endif  // SOURCE_TAS2780_TAS2780_SETTINGS_H_
+
+/**
+ * @}
+ */

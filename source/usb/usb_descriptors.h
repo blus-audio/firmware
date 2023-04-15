@@ -1,4 +1,13 @@
 // Copyright 2023 elagil
+
+/**
+ * @file
+ * @brief   USB descriptors for UAC 1.0 functionality.
+ *
+ * @addtogroup usb
+ * @{
+ */
+
 #ifndef SOURCE_USB_USB_DESCRIPTORS_H_
 #define SOURCE_USB_USB_DESCRIPTORS_H_
 
@@ -228,3 +237,7 @@ static const USBDescriptor audio_strings[] = {{sizeof audio_string0, audio_strin
                                               {sizeof audio_string3, audio_string3}};
 
 #endif  // SOURCE_USB_USB_DESCRIPTORS_H_
+
+/**
+ * @}
+ */

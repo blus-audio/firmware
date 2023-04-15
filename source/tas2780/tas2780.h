@@ -1,4 +1,13 @@
 // Copyright2023 elagil
+
+/**
+ * @file
+ * @brief   TI TAS2780 amplifier control module headers.
+ *
+ * @addtogroup tas2780
+ * @{
+ */
+
 #ifndef SOURCE_TAS2780_TAS2780_H_
 #define SOURCE_TAS2780_TAS2780_H_
 
@@ -215,3 +224,7 @@ void    tas2780_ensure_active_all(void);
 uint8_t tas2780_get_noise_gate_mask_all(void);
 
 #endif  // SOURCE_TAS2780_TAS2780_H_
+
+/**
+ * @}
+ */

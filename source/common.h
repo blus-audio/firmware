@@ -1,4 +1,13 @@
 // Copyright 2023 elagil
+
+/**
+ * @file
+ * @brief   Commonly used helper functionality.
+ *
+ * @addtogroup common
+ * @{
+ */
+
 #ifndef SOURCE_COMMON_H_
 #define SOURCE_COMMON_H_
 
@@ -89,3 +98,7 @@ static inline size_t add_circular_unsigned(size_t summand_a, size_t summand_b, s
 }
 
 #endif  // SOURCE_COMMON_H_
+
+/**
+ * @}
+ */

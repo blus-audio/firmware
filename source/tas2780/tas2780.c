@@ -1,4 +1,13 @@
 // Copyright 2023 elagil
+
+/**
+ * @file
+ * @brief   TI TAS2780 amplifier control module.
+ *
+ * @addtogroup tas2780
+ * @{
+ */
+
 #include "tas2780.h"
 
 #include "hal.h"
@@ -363,3 +372,7 @@ uint8_t tas2780_get_noise_gate_mask_all(void) {
 
     return noise_gate_mask;
 }
+
+/**
+ * @}
+ */

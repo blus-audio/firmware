@@ -1,4 +1,19 @@
 // Copyright 2023 elagil
+
+/**
+ * @file
+ * @brief   The main application module.
+ * @details Contains the main application thread, and from there sets up
+ * - general USB handling,
+ * - the audio module,
+ * - volume potentiometer ADC readout,
+ * - amplifier/DAC controls, and
+ * - reporting functionality.
+ *
+ * @addtogroup main
+ * @{
+ */
+
 #include <string.h>
 
 #include "audio.h"
@@ -140,3 +155,7 @@ int main(void) {
         }
     }
 }
+
+/**
+ * @}
+ */

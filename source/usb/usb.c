@@ -1,4 +1,13 @@
 // Copyright 2023 elagil
+
+/**
+ * @file
+ * @brief   General USB setup and callback handlers.
+ *
+ * @addtogroup usb
+ * @{
+ */
+
 #include "usb.h"
 
 #include "audio.h"
@@ -115,3 +124,7 @@ void usb_setup(void) {
     usbStart(&USB_DRIVER, &g_usb_config);
     usbConnectBus(&USB_DRIVER);
 }
+
+/**
+ * @}
+ */
