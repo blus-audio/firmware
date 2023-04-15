@@ -99,7 +99,7 @@ void tas2780_set_volume(struct tas2780_context *p_context,
  * @param p_context The pointer to the amplifier context.
  */
 void tas2780_setup(struct tas2780_context *p_context) {
-    // FIXME: Seperate into functions.
+    // FIXME: Separate into functions.
     // FIXME: Take into account the page of registers. Currently, it is assumed
     // that the amplifier is resting at page 0 after setup.
     uint8_t *p_write_buffer = p_context->write_buffer;
