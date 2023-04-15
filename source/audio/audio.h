@@ -10,54 +10,54 @@
 #define I2S_DRIVER (I2SD3)
 
 // Supported control requests from the USB Audio Class.
-#define UAC_REQ_SET_CUR 0x01
-#define UAC_REQ_SET_MIN 0x02
-#define UAC_REQ_SET_MAX 0x03
-#define UAC_REQ_SET_RES 0x04
-#define UAC_REQ_GET_CUR 0x81
-#define UAC_REQ_GET_MIN 0x82
-#define UAC_REQ_GET_MAX 0x83
-#define UAC_REQ_GET_RES 0x84
+#define UAC_REQ_SET_CUR 0x01u
+#define UAC_REQ_SET_MIN 0x02u
+#define UAC_REQ_SET_MAX 0x03u
+#define UAC_REQ_SET_RES 0x04u
+#define UAC_REQ_GET_CUR 0x81u
+#define UAC_REQ_GET_MIN 0x82u
+#define UAC_REQ_GET_MAX 0x83u
+#define UAC_REQ_GET_RES 0x84u
 
 // Functional endpoints.
-#define UAC_FU_MUTE_CONTROL   0x01
-#define UAC_FU_VOLUME_CONTROL 0x02
+#define UAC_FU_MUTE_CONTROL   0x01u
+#define UAC_FU_VOLUME_CONTROL 0x02u
 
 /**
  * @brief Audio related events.
  *
  */
-#define AUDIO_EVENT EVENT_MASK(0)
+#define AUDIO_EVENT EVENT_MASK(0u)
 
 /**
  * @brief Start streaming audio data from USB.
  */
-#define AUDIO_EVENT_START_STREAMING EVENT_MASK(1)
+#define AUDIO_EVENT_START_STREAMING EVENT_MASK(1u)
 
 /**
  * @brief Stop streaming audio data from USB.
  */
-#define AUDIO_EVENT_STOP_STREAMING EVENT_MASK(2)
+#define AUDIO_EVENT_STOP_STREAMING EVENT_MASK(2u)
 
 /**
  * @brief Start I2S audio blayback.
  */
-#define AUDIO_EVENT_START_PLAYBACK EVENT_MASK(3)
+#define AUDIO_EVENT_START_PLAYBACK EVENT_MASK(3u)
 
 /**
  * @brief Stop I2S audio blayback.
  */
-#define AUDIO_EVENT_STOP_PLAYBACK EVENT_MASK(4)
+#define AUDIO_EVENT_STOP_PLAYBACK EVENT_MASK(4u)
 
 /**
  * @brief Mute state changed.
  */
-#define AUDIO_EVENT_MUTE EVENT_MASK(5)
+#define AUDIO_EVENT_MUTE EVENT_MASK(5u)
 
 /**
  * @brief Volume setting changed.
  */
-#define AUDIO_EVENT_VOLUME EVENT_MASK(6)
+#define AUDIO_EVENT_VOLUME EVENT_MASK(6u)
 
 /**
  * @brief The audio sample rate in Hz.
@@ -89,7 +89,7 @@
 /**
  * @brief Number of audio samples that are transported per USB frame.
  */
-#define AUDIO_SAMPLES_PER_FRAME (AUDIO_SAMPLE_RATE_HZ / 1000)
+#define AUDIO_SAMPLES_PER_FRAME (AUDIO_SAMPLE_RATE_HZ / 1000u)
 
 /**
  * @brief The size of each sample in bytes.
@@ -211,8 +211,8 @@ enum audio_feedback_correction_state {
  * @brief The audio channel (left or right).
  */
 enum audio_channel {
-    AUDIO_CHANNEL_LEFT  = 0,  ///< The left audio channel.
-    AUDIO_CHANNEL_RIGHT = 1   ///< The right audio channel.
+    AUDIO_CHANNEL_LEFT  = 0u,  ///< The left audio channel.
+    AUDIO_CHANNEL_RIGHT = 1u   ///< The right audio channel.
 };
 
 /**
@@ -291,6 +291,7 @@ event_source_t *audio_get_event_source(void);
 bool            audio_is_streaming(void);
 bool            audio_channel_is_muted(enum audio_channel audio_channel);
 int16_t         audio_channel_get_volume(enum audio_channel audio_channel);
+uint16_t        audio_get_fill_level(void);
 
 void            audio_setup(void);
 void            audio_stop_playback_cb(USBDriver *usbp);

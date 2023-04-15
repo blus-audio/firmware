@@ -44,6 +44,15 @@ volatile struct audio_context *audio_get_context(void) {
 }
 
 /**
+ * @brief Get the audio buffer fill level.
+ *
+ * @return uint16_t The fill level.
+ */
+uint16_t audio_get_fill_level(void) {
+    return g_audio_context.playback.fill_level;
+}
+
+/**
  * @brief Check the mute state of an audio channel.
  *
  * @param audio_channel The audio channel to check.
@@ -271,9 +280,8 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
         audio_feedback_correct();
 
         // Translate the feedback value to a buffer of three bytes.
-        p_feedback->buffer[0]         = p_feedback->value & 0xFF;
-        p_feedback->buffer[1]         = (p_feedback->value >> 8) & 0xFF;
-        p_feedback->buffer[2]         = (p_feedback->value >> 16) & 0xFF;
+        value_to_byte_array((uint8_t *)p_feedback->buffer, p_feedback->value,
+                            AUDIO_FEEDBACK_BUFFER_SIZE);
 
         p_feedback->sof_package_count = 0u;
         p_feedback->b_is_valid        = true;

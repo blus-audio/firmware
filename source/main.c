@@ -70,23 +70,17 @@ static THD_FUNCTION(reporting_thread, arg) {
 
         chprintf(p_stream, "Potentiometer: %u\n",
                  g_adc_sample >> 4);  // Convert to an 8 bit number.
-                                      //
+
         chprintf(p_stream, "Volume: %li / %li dB\n",
                  (audio_channel_get_volume(AUDIO_CHANNEL_LEFT) >> 8),
                  (audio_channel_get_volume(AUDIO_CHANNEL_RIGHT) >> 8));
-#if 0
-        // FIXME: provide interface for diagnostic info in audio module.
-        chprintf(p_stream, "Feedback value: %lu (%lu errors)\n",
-                 p_audio_context->feedback.value,
-                 p_audio_context->diagnostics.error_count);
-        chprintf(p_stream, "Feedback correction mode: %u\n",
-                 p_audio_context->feedback.correction);
+
         chprintf(p_stream,
                  "Audio buffer fill level: %lu / %lu (margins %lu / %lu)\n",
-                 p_audio_context->playback.fill_level, AUDIO_BUFFER_LENGTH,
+                 audio_get_fill_level(), AUDIO_BUFFER_LENGTH,
                  AUDIO_BUFFER_MIN_FILL_LEVEL, AUDIO_BUFFER_MAX_FILL_LEVEL);
-#endif
-        chThdSleepMilliseconds(1000);
+
+        chThdSleepMilliseconds(500);
     }
 }
 #endif
@@ -119,8 +113,8 @@ int main(void) {
     static event_listener_t audio_event_listener;
     chEvtRegisterMask(p_audio_event_source, &audio_event_listener, AUDIO_EVENT);
 
-// Create reporting thread.
 #if ENABLE_REPORTING == TRUE
+    // Create reporting thread.
     chThdCreateStatic(wa_reporting_thread, sizeof(wa_reporting_thread),
                       NORMALPRIO, reporting_thread, NULL);
 #endif

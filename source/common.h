@@ -9,8 +9,9 @@
 
 /**
  * @brief Enable or disable the reporting thread (for debug purposes).
+ * @note Set to \a TRUE or \a FALSE .
  */
-#define ENABLE_REPORTING FALSE
+#define ENABLE_REPORTING TRUE
 
 /**
  * @brief Calculate the length (number of elements) of an array.
@@ -18,6 +19,35 @@
  * @param _array The array, of which to calculate the length.
  */
 #define ARRAY_LENGTH(_array) (sizeof(_array) / sizeof(_array[0]))
+
+/**
+ * @brief Extract a byte from a provided value at a certain index.
+ * @details The index is counted up from the LSB position.
+ *
+ * @param _value The value to extract a byte from.
+ * @param _byte_index The byte index.
+ */
+#define GET_BYTE(_value, _byte_index) ((_value >> (8u * _byte_index)) & 0xFFu)
+
+/**
+ * @brief Write a value to an array of bytes, starting at the LSB.
+ *
+ * @param p_bytes The array of bytes to write.
+ * @param value The value to read from.
+ * @param byte_count The number of bytes. Is clamped to \a sizeof(uint32_t) .
+ */
+static inline void value_to_byte_array(uint8_t* p_bytes, uint32_t value,
+                                       size_t byte_count) {
+    uint32_t clamped_byte_count = byte_count;
+
+    if (clamped_byte_count > sizeof(uint32_t)) {
+        clamped_byte_count = sizeof(uint32_t);
+    }
+
+    for (size_t byte_index = 0; byte_index < clamped_byte_count; byte_index++) {
+        p_bytes[byte_index] = GET_BYTE(value, byte_index);
+    }
+}
 
 /**
  * @brief Wrap an unsigned number to a certain maximum value.

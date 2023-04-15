@@ -3,6 +3,7 @@
 #define SOURCE_USB_USB_DESCRIPTORS_H_
 
 #include "audio.h"
+#include "common.h"
 #include "hal.h"
 
 /**
@@ -132,9 +133,9 @@ static const uint8_t audio_configuration_descriptor_data[122] = {
     USB_DESC_BYTE(0x02u),                 // bSubFrameSize (2).
     USB_DESC_BYTE(AUDIO_RESOLUTION_BIT),  // bBitResolution.
     USB_DESC_BYTE(0x01u),                 // bSamFreqType (Type I).
-    USB_DESC_BYTE(AUDIO_SAMPLE_RATE_HZ & 0xFFu),
-    USB_DESC_BYTE((AUDIO_SAMPLE_RATE_HZ >> 8u) & 0xFFu),
-    USB_DESC_BYTE((AUDIO_SAMPLE_RATE_HZ >> 16u) & 0xFFu),
+    USB_DESC_BYTE(GET_BYTE(AUDIO_SAMPLE_RATE_HZ, 0u)),
+    USB_DESC_BYTE(GET_BYTE(AUDIO_SAMPLE_RATE_HZ, 1u)),
+    USB_DESC_BYTE(GET_BYTE(AUDIO_SAMPLE_RATE_HZ, 2u)),
     // Standard AS Isochronous Audio Data Endpoint Descriptor (UAC 4.6.1.1)
     USB_DESC_BYTE(9u),                       // bLength (9).
     USB_DESC_BYTE(0x05u),                    // bDescriptorType (Endpoint).
