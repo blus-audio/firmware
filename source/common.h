@@ -4,7 +4,13 @@
 
 #include <stddef.h>
 
+#include "ch.h"
 #include "inttypes.h"
+
+/**
+ * @brief Enable or disable the reporting thread (for debug purposes).
+ */
+#define ENABLE_REPORTING FALSE
 
 /**
  * @brief Calculate the length (number of elements) of an array.

@@ -305,7 +305,8 @@ void tas2780_setup_all(void) {
         tas2780_init_context(&g_tas2780_contexts[device_index],
                              TAS2780_DEVICE_CHANNELS[device_index],
                              TAS2780_DEVICE_ADDRESSES[device_index],
-                             TAS2780_TDM_SLOT_INDICES[device_index], 0x00);
+                             TAS2780_TDM_SLOT_INDICES[device_index],
+                             TAS2780_CHNL_0_AMP_LEVEL_MIN);
         tas2780_setup(&g_tas2780_contexts[device_index]);
     }
 }

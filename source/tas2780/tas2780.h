@@ -94,15 +94,19 @@ struct tas2780_context {
 #define TAS2780_MODE_CTRL_BOP_SRC_DEFAULT          (0x00u)
 
 // CHNL_0 register
-#define TAS2780_CHNL_0_REG               (0x03u)
+#define TAS2780_CHNL_0_REG            (0x03u)
 
-#define TAS2780_CHNL_0_RES_POS           (0u)
-#define TAS2780_CHNL_0_RES_MASK          (0x01u << TAS2780_CHNL_0_RES_POS)
-#define TAS2780_CHNL_0_RES_DEFAULT       (0x00u)
+#define TAS2780_CHNL_0_RES_POS        (0u)
+#define TAS2780_CHNL_0_RES_MASK       (0x01u << TAS2780_CHNL_0_RES_POS)
+#define TAS2780_CHNL_0_RES_DEFAULT    (0x00u)
 
-#define TAS2780_CHNL_0_AMP_LEVEL_POS     (1u)
-#define TAS2780_CHNL_0_AMP_LEVEL_MASK    (0x1Fu << TAS2780_CHNL_0_AMP_LEVEL_POS)
-#define TAS2780_CHNL_0_AMP_LEVEL_MAX     (0x14u)
+#define TAS2780_CHNL_0_AMP_LEVEL_POS  (1u)
+#define TAS2780_CHNL_0_AMP_LEVEL_MASK (0x1Fu << TAS2780_CHNL_0_AMP_LEVEL_POS)
+
+#define TAS2780_CHNL_0_AMP_LEVEL_MIN                                           \
+    (0x00u)  ///< 11 dBV gain (48 kHz), 9 dBV gain (96 kHz)
+#define TAS2780_CHNL_0_AMP_LEVEL_MAX                                           \
+    (0x14u)  ///< 21 dBV gain (48 kHz), 19 dBV gain (96 kHz)
 #define TAS2780_CHNL_0_AMP_LEVEL_DEFAULT TAS2780_CHNL_0_AMP_LEVEL_MAX
 
 #define TAS2780_CHNL_0_CDS_MODE_POS      (6u)

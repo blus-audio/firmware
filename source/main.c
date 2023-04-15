@@ -9,24 +9,22 @@
 #include "usb.h"
 
 /**
+ * @brief The volume potentiometer ADC sample (12 bit long).
+ */
+adcsample_t g_adc_sample;
+
+/**
  * @brief Settings structure for the TAS2780 I2C driver.
  */
 static const I2CConfig g_tas2780_i2c_config = {.op_mode     = OPMODE_I2C,
                                                .clock_speed = 100000u,
                                                .duty_cycle  = STD_DUTY_CYCLE};
 
-static THD_WORKING_AREA(wa_reporting_thread, 128);
-
 /**
- * @brief A reporting thread that outputs status information via UART.
+ * @brief Starts continuous sampling of the volume potentiometer ADC.
+ * @note The result is currently unused.
  */
-static THD_FUNCTION(reporting_thread, arg) {
-    (void)arg;
-    static BaseSequentialStream *p_stream = (BaseSequentialStream *)&SD2;
-
-    sdStart(&SD2, NULL);
-    chRegSetThreadName("reporting");
-
+void start_volume_adc(void) {
     // ADC conversion group:
     // - continuous conversion
     // - 480 samples conversion time
@@ -47,9 +45,22 @@ static THD_FUNCTION(reporting_thread, arg) {
         .sqr3         = ADC_SQR3_SQ1_N(ADC_CHANNEL_IN9)};
 
     // Start continuous conversion.
-    adcsample_t adc_sample;
     adcStart(&ADCD1, NULL);
-    adcStartConversion(&ADCD1, &adc_conversion_group, &adc_sample, 1u);
+    adcStartConversion(&ADCD1, &adc_conversion_group, &g_adc_sample, 1u);
+}
+
+#if ENABLE_REPORTING == TRUE
+static THD_WORKING_AREA(wa_reporting_thread, 128);
+
+/**
+ * @brief A reporting thread that outputs status information via UART.
+ */
+static THD_FUNCTION(reporting_thread, arg) {
+    (void)arg;
+    static BaseSequentialStream *p_stream = (BaseSequentialStream *)&SD2;
+
+    sdStart(&SD2, NULL);
+    chRegSetThreadName("reporting");
 
     while (true) {
         tas2780_ensure_active_all();
@@ -58,7 +69,8 @@ static THD_FUNCTION(reporting_thread, arg) {
         chprintf(p_stream, "Noise gate: %u\n", noise_gate_mask);
 
         chprintf(p_stream, "Potentiometer: %u\n",
-                 adc_sample >> 4);  // Convert to an 8 bit number.
+                 g_adc_sample >> 4);  // Convert to an 8 bit number.
+                                      //
         chprintf(p_stream, "Volume: %li / %li dB\n",
                  (audio_channel_get_volume(AUDIO_CHANNEL_LEFT) >> 8),
                  (audio_channel_get_volume(AUDIO_CHANNEL_RIGHT) >> 8));
@@ -77,6 +89,7 @@ static THD_FUNCTION(reporting_thread, arg) {
         chThdSleepMilliseconds(1000);
     }
 }
+#endif
 
 /**
  * @brief Application entry point.
@@ -99,13 +112,18 @@ int main(void) {
     i2cStart(&I2CD1, &g_tas2780_i2c_config);
     tas2780_setup_all();
 
+    // Begin reading volume potentiometer ADC.
+    start_volume_adc();
+
     // Registers this thread for audio events.
     static event_listener_t audio_event_listener;
     chEvtRegisterMask(p_audio_event_source, &audio_event_listener, AUDIO_EVENT);
 
-    // Create reporting thread.
+// Create reporting thread.
+#if ENABLE_REPORTING == TRUE
     chThdCreateStatic(wa_reporting_thread, sizeof(wa_reporting_thread),
                       NORMALPRIO, reporting_thread, NULL);
+#endif
 
     // Wait for an audio event.
     while (true) {
