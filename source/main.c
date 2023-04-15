@@ -16,9 +16,8 @@ adcsample_t g_adc_sample;
 /**
  * @brief Settings structure for the TAS2780 I2C driver.
  */
-static const I2CConfig g_tas2780_i2c_config = {.op_mode     = OPMODE_I2C,
-                                               .clock_speed = 100000u,
-                                               .duty_cycle  = STD_DUTY_CYCLE};
+static const I2CConfig g_tas2780_i2c_config = {
+    .op_mode = OPMODE_I2C, .clock_speed = 100000u, .duty_cycle = STD_DUTY_CYCLE};
 
 /**
  * @brief Starts continuous sampling of the volume potentiometer ADC.
@@ -29,20 +28,19 @@ void start_volume_adc(void) {
     // - continuous conversion
     // - 480 samples conversion time
     // - Channel 9
-    static const ADCConversionGroup adc_conversion_group = {
-        .circular     = TRUE,
-        .num_channels = 1,
-        .end_cb       = NULL,
-        .error_cb     = NULL,
-        .cr1          = 0u,
-        .cr2          = ADC_CR2_SWSTART,
-        .smpr1        = 0u,
-        .smpr2        = ADC_SMPR2_SMP_AN9(ADC_SAMPLE_480),
-        .htr          = 0u,
-        .ltr          = 0u,
-        .sqr1         = 0u,
-        .sqr2         = 0u,
-        .sqr3         = ADC_SQR3_SQ1_N(ADC_CHANNEL_IN9)};
+    static const ADCConversionGroup adc_conversion_group = {.circular     = TRUE,
+                                                            .num_channels = 1,
+                                                            .end_cb       = NULL,
+                                                            .error_cb     = NULL,
+                                                            .cr1          = 0u,
+                                                            .cr2          = ADC_CR2_SWSTART,
+                                                            .smpr1        = 0u,
+                                                            .smpr2        = ADC_SMPR2_SMP_AN9(ADC_SAMPLE_480),
+                                                            .htr          = 0u,
+                                                            .ltr          = 0u,
+                                                            .sqr1         = 0u,
+                                                            .sqr2         = 0u,
+                                                            .sqr3         = ADC_SQR3_SQ1_N(ADC_CHANNEL_IN9)};
 
     // Start continuous conversion.
     adcStart(&ADCD1, NULL);
@@ -71,14 +69,11 @@ static THD_FUNCTION(reporting_thread, arg) {
         chprintf(p_stream, "Potentiometer: %u\n",
                  g_adc_sample >> 4);  // Convert to an 8 bit number.
 
-        chprintf(p_stream, "Volume: %li / %li dB\n",
-                 (audio_channel_get_volume(AUDIO_CHANNEL_LEFT) >> 8),
+        chprintf(p_stream, "Volume: %li / %li dB\n", (audio_channel_get_volume(AUDIO_CHANNEL_LEFT) >> 8),
                  (audio_channel_get_volume(AUDIO_CHANNEL_RIGHT) >> 8));
 
-        chprintf(p_stream,
-                 "Audio buffer fill level: %lu / %lu (margins %lu / %lu)\n",
-                 audio_get_fill_level(), AUDIO_BUFFER_LENGTH,
-                 AUDIO_BUFFER_MIN_FILL_LEVEL, AUDIO_BUFFER_MAX_FILL_LEVEL);
+        chprintf(p_stream, "Audio buffer fill level: %lu / %lu (margins %lu / %lu)\n", audio_get_fill_level(),
+                 AUDIO_BUFFER_LENGTH, AUDIO_BUFFER_MIN_FILL_LEVEL, AUDIO_BUFFER_MAX_FILL_LEVEL);
 
         chThdSleepMilliseconds(500);
     }
@@ -115,8 +110,7 @@ int main(void) {
 
 #if ENABLE_REPORTING == TRUE
     // Create reporting thread.
-    chThdCreateStatic(wa_reporting_thread, sizeof(wa_reporting_thread),
-                      NORMALPRIO, reporting_thread, NULL);
+    chThdCreateStatic(wa_reporting_thread, sizeof(wa_reporting_thread), NORMALPRIO, reporting_thread, NULL);
 #endif
 
     // Wait for an audio event.
@@ -129,28 +123,19 @@ int main(void) {
             tas2780_set_volume_all(TAS2780_VOLUME_MAX, TAS2780_CHANNEL_BOTH);
         }
 
-        // Joint handling of volume and mute controls.
-        // Only adjust volume, when streaming over USB. Other audio sources
+        // Joint handling of volume and mute controls. Only adjust volume, when streaming over USB. Other audio sources
         // must not be affected by USB volume adjustments.
-        if (((event_flags & AUDIO_EVENT_MUTE) ||
-             (event_flags & AUDIO_EVENT_VOLUME)) &&
-            audio_is_streaming()) {
+        if (((event_flags & AUDIO_EVENT_MUTE) || (event_flags & AUDIO_EVENT_VOLUME)) && audio_is_streaming()) {
             if (audio_channel_is_muted(AUDIO_CHANNEL_LEFT)) {
-                tas2780_set_volume_all(TAS2780_VOLUME_MUTE,
-                                       TAS2780_CHANNEL_LEFT);
+                tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_LEFT);
             } else {
-                tas2780_set_volume_all(
-                    audio_channel_get_volume(AUDIO_CHANNEL_LEFT),
-                    TAS2780_CHANNEL_LEFT);
+                tas2780_set_volume_all(audio_channel_get_volume(AUDIO_CHANNEL_LEFT), TAS2780_CHANNEL_LEFT);
             }
 
             if (audio_channel_is_muted(AUDIO_CHANNEL_RIGHT)) {
-                tas2780_set_volume_all(TAS2780_VOLUME_MUTE,
-                                       TAS2780_CHANNEL_RIGHT);
+                tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_RIGHT);
             } else {
-                tas2780_set_volume_all(
-                    audio_channel_get_volume(AUDIO_CHANNEL_RIGHT),
-                    TAS2780_CHANNEL_RIGHT);
+                tas2780_set_volume_all(audio_channel_get_volume(AUDIO_CHANNEL_RIGHT), TAS2780_CHANNEL_RIGHT);
             }
         }
     }
