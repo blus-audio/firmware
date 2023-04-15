@@ -208,6 +208,14 @@ enum audio_feedback_correction_state {
 };
 
 /**
+ * @brief The audio channel (left or right).
+ */
+enum audio_channel {
+    AUDIO_CHANNEL_LEFT  = 0,  ///< The left audio channel.
+    AUDIO_CHANNEL_RIGHT = 1   ///< The right audio channel.
+};
+
+/**
  * @brief A structure that holds the state of the audio sample rate feedback.
  */
 struct audio_feedback {
@@ -278,13 +286,16 @@ struct audio_context {
     struct audio_diagnostics diagnostics;  ///< The audio diagnostics structure.
 };
 
-event_source_t                *audio_get_event_source(void);
-volatile struct audio_context *audio_get_context(void);
+event_source_t *audio_get_event_source(void);
 
-void                           audio_setup(void);
-void                           audio_stop_playback_cb(USBDriver *usbp);
-bool                           audio_requests_hook_cb(USBDriver *usbp);
-void                           audio_received_cb(USBDriver *usbp, usbep_t ep);
-void                           audio_feedback_cb(USBDriver *usbp, usbep_t ep);
+bool            audio_is_streaming(void);
+bool            audio_channel_is_muted(enum audio_channel audio_channel);
+int16_t         audio_channel_get_volume(enum audio_channel audio_channel);
+
+void            audio_setup(void);
+void            audio_stop_playback_cb(USBDriver *usbp);
+bool            audio_requests_hook_cb(USBDriver *usbp);
+void            audio_received_cb(USBDriver *usbp, usbep_t ep);
+void            audio_feedback_cb(USBDriver *usbp, usbep_t ep);
 
 #endif  // SOURCE_AUDIO_AUDIO_H_

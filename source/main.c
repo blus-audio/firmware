@@ -22,8 +22,7 @@ static THD_WORKING_AREA(wa_reporting_thread, 128);
  */
 static THD_FUNCTION(reporting_thread, arg) {
     (void)arg;
-    static BaseSequentialStream   *p_stream = (BaseSequentialStream *)&SD2;
-    volatile struct audio_context *p_audio_context = audio_get_context();
+    static BaseSequentialStream *p_stream = (BaseSequentialStream *)&SD2;
 
     sdStart(&SD2, NULL);
     chRegSetThreadName("reporting");
@@ -55,15 +54,16 @@ static THD_FUNCTION(reporting_thread, arg) {
     while (true) {
         tas2780_ensure_active_all();
 
-        uint8_t noise_gate_mask = tas2780_noise_gate_mask_all();
+        uint8_t noise_gate_mask = tas2780_get_noise_gate_mask_all();
         chprintf(p_stream, "Noise gate: %u\n", noise_gate_mask);
 
         chprintf(p_stream, "Potentiometer: %u\n",
                  adc_sample >> 4);  // Convert to an 8 bit number.
-        chprintf(
-            p_stream, "Volume: %li / %li dB\n",
-            (p_audio_context->control.channel_volume_levels_8q8_db[0] >> 8),
-            (p_audio_context->control.channel_volume_levels_8q8_db[1] >> 8));
+        chprintf(p_stream, "Volume: %li / %li dB\n",
+                 (audio_channel_get_volume(AUDIO_CHANNEL_LEFT) >> 8),
+                 (audio_channel_get_volume(AUDIO_CHANNEL_RIGHT) >> 8));
+#if 0
+        // FIXME: provide interface for diagnostic info in audio module.
         chprintf(p_stream, "Feedback value: %lu (%lu errors)\n",
                  p_audio_context->feedback.value,
                  p_audio_context->diagnostics.error_count);
@@ -73,7 +73,7 @@ static THD_FUNCTION(reporting_thread, arg) {
                  "Audio buffer fill level: %lu / %lu (margins %lu / %lu)\n",
                  p_audio_context->playback.fill_level, AUDIO_BUFFER_LENGTH,
                  AUDIO_BUFFER_MIN_FILL_LEVEL, AUDIO_BUFFER_MAX_FILL_LEVEL);
-
+#endif
         chThdSleepMilliseconds(1000);
     }
 }
@@ -87,8 +87,7 @@ int main(void) {
     halInit();
     chSysInit();
 
-    event_source_t *p_audio_event_source           = audio_get_event_source();
-    volatile struct audio_context *p_audio_context = audio_get_context();
+    event_source_t *p_audio_event_source = audio_get_event_source();
 
     // Initialize audio module.
     audio_setup();
@@ -119,23 +118,26 @@ int main(void) {
         }
 
         // Joint handling of volume and mute controls.
-        if ((event_flags & AUDIO_EVENT_MUTE) ||
-            (event_flags & AUDIO_EVENT_VOLUME)) {
-            if (p_audio_context->control.b_channel_mute_states[0]) {
+        // Only adjust volume, when streaming over USB. Other audio sources
+        // must not be affected by USB volume adjustments.
+        if (((event_flags & AUDIO_EVENT_MUTE) ||
+             (event_flags & AUDIO_EVENT_VOLUME)) &&
+            audio_is_streaming()) {
+            if (audio_channel_is_muted(AUDIO_CHANNEL_LEFT)) {
                 tas2780_set_volume_all(TAS2780_VOLUME_MUTE,
                                        TAS2780_CHANNEL_LEFT);
             } else {
                 tas2780_set_volume_all(
-                    p_audio_context->control.channel_volume_levels_8q8_db[0],
+                    audio_channel_get_volume(AUDIO_CHANNEL_LEFT),
                     TAS2780_CHANNEL_LEFT);
             }
 
-            if (p_audio_context->control.b_channel_mute_states[1]) {
+            if (audio_channel_is_muted(AUDIO_CHANNEL_RIGHT)) {
                 tas2780_set_volume_all(TAS2780_VOLUME_MUTE,
                                        TAS2780_CHANNEL_RIGHT);
             } else {
                 tas2780_set_volume_all(
-                    p_audio_context->control.channel_volume_levels_8q8_db[1],
+                    audio_channel_get_volume(AUDIO_CHANNEL_RIGHT),
                     TAS2780_CHANNEL_RIGHT);
             }
         }

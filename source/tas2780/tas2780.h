@@ -225,6 +225,6 @@ void tas2780_set_volume_all(int16_t              volume_8q8_db,
                             enum tas2780_channel channel);
 void tas2780_init(struct tas2780_context *p_context, uint16_t device_address);
 void tas2780_ensure_active_all(void);
-uint8_t tas2780_noise_gate_mask_all(void);
+uint8_t tas2780_get_noise_gate_mask_all(void);
 
 #endif  // SOURCE_TAS2780_TAS2780_H_

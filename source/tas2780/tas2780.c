@@ -380,7 +380,7 @@ void tas2780_ensure_active_all(void) {
  * signal).
  * @return false if the noise gate is inactive.
  */
-bool tas2780_noise_gate_detected(struct tas2780_context *p_context) {
+bool tas2780_noise_gate_is_enabled(struct tas2780_context *p_context) {
     uint8_t *p_write_buffer = p_context->write_buffer;
     uint8_t *p_read_buffer  = p_context->read_buffer;
 
@@ -402,12 +402,12 @@ bool tas2780_noise_gate_detected(struct tas2780_context *p_context) {
  *
  * @return uint8_t The noise gate mask.
  */
-uint8_t tas2780_noise_gate_mask_all(void) {
+uint8_t tas2780_get_noise_gate_mask_all(void) {
     uint8_t noise_gate_mask = 0u;
 
     for (size_t device_index = 0; device_index < TAS2780_DEVICE_COUNT;
          device_index++) {
-        if (tas2780_noise_gate_detected(&g_tas2780_contexts[device_index])) {
+        if (tas2780_noise_gate_is_enabled(&g_tas2780_contexts[device_index])) {
             noise_gate_mask |= (1u << device_index);
         }
     }

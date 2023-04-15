@@ -44,6 +44,37 @@ volatile struct audio_context *audio_get_context(void) {
 }
 
 /**
+ * @brief Check the mute state of an audio channel.
+ *
+ * @param audio_channel The audio channel to check.
+ * @return true if the channel is muted.
+ * @return false if the channel is not muted.
+ */
+bool audio_channel_is_muted(enum audio_channel audio_channel) {
+    return g_audio_context.control.b_channel_mute_states[audio_channel];
+}
+
+/**
+ * @brief Get the volume of an audio channel.
+ *
+ * @param audio_channel The audio channel, for which to get the volume.
+ * @return int16_t The volume level in 8.8 fractional dB.
+ */
+int16_t audio_channel_get_volume(enum audio_channel audio_channel) {
+    return g_audio_context.control.channel_volume_levels_8q8_db[audio_channel];
+}
+
+/**
+ * @brief Check if audio streaming via USB is enabled.
+ *
+ * @return true if streaming is enabled.
+ * @return false if streaming is disabled.
+ */
+bool audio_is_streaming(void) {
+    return g_audio_context.playback.b_streaming_enabled;
+}
+
+/**
  * @brief Initialize the audio diagnostics structure.
  *
  * @param p_diagnostics The pointer to the structure to initialize.
