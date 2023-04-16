@@ -12,6 +12,7 @@
 #ifndef SOURCE_AUDIO_AUDIO_H_
 #define SOURCE_AUDIO_AUDIO_H_
 
+#include "audio_settings.h"
 #include "hal.h"
 
 /**
@@ -70,25 +71,9 @@
 #define AUDIO_EVENT_VOLUME EVENT_MASK(6u)
 
 /**
- * @brief The audio sample rate in Hz.
- */
-#define AUDIO_SAMPLE_RATE_HZ 48000u
-
-/**
- * @brief The resolution of an audio sample in bits.
- */
-#define AUDIO_RESOLUTION_BIT 16u
-
-/**
- * @brief The number of audio channels, e.g. 2 for stereo.
+ * @brief The number of audio channels - two for stereo.
  */
 #define AUDIO_CHANNEL_COUNT 2u
-
-/**
- * @brief The number of complete audio packets to hold in the audio buffer.
- * @details Larger numbers allow more tolerance for changes in provided sample rate, but lead to more latency.
- */
-#define AUDIO_BUFFER_PACKET_COUNT 3u
 
 /**
  * @brief The number of bits in a byte.
@@ -96,42 +81,38 @@
 #define AUDIO_BIT_PER_BYTE 8u
 
 /**
- * @brief Number of audio samples that are transported per USB frame.
- */
-#define AUDIO_SAMPLES_PER_FRAME (AUDIO_SAMPLE_RATE_HZ / 1000u)
-
-/**
  * @brief The size of each sample in bytes.
  */
 #define AUDIO_SAMPLE_SIZE (AUDIO_RESOLUTION_BIT / AUDIO_BIT_PER_BYTE)
 
 /**
- * @brief The size of an audio packet.
- * @details Calculated by means of the number of samples per frame, the channel count, and the size per audio sample.
+ * @brief The size of an audio packet, transported per USB frame.
+ * @details Samples are transferred once per SOF period, which, for full-speed USB, happens every 1 ms.
+ * Thus, the sample rate in Hz is divided by 1000 for the number of samples per SOF period.
  */
-#define AUDIO_PACKET_SIZE (AUDIO_SAMPLES_PER_FRAME * AUDIO_CHANNEL_COUNT * AUDIO_SAMPLE_SIZE)
+#define AUDIO_PACKET_SIZE ((AUDIO_CHANNEL_COUNT * AUDIO_SAMPLE_RATE_HZ) / 1000u * AUDIO_SAMPLE_SIZE)
 
 /**
- * @brief The maximum audio packet size to be received.
+ * @brief The maximum audio packet size to be received, in bytes.
  * @details Due to the feedback mechanism, a frame can be larger than the regular \a AUDIO_PACKET_SIZE. If the device
  * reports a too low sample rate, the host has to send a larger packet.
  */
-#define AUDIO_MAX_PACKET_SIZE (2u * AUDIO_PACKET_SIZE)
+#define AUDIO_MAX_PACKET_SIZE (2 * AUDIO_PACKET_SIZE)
 
 /**
- * @brief The number of samples in the audio buffer.
+ * @brief The size of the audio buffer in bytes.
  */
-#define AUDIO_BUFFER_LENGTH (AUDIO_PACKET_SIZE * AUDIO_BUFFER_PACKET_COUNT)
+#define AUDIO_BUFFER_SIZE (AUDIO_PACKET_SIZE * AUDIO_BUFFER_PACKET_COUNT)
 
 /**
- * @brief The target buffer fill level in number of samples.
+ * @brief The target buffer fill level in bytes.
  * @details By adding half a packet size, the buffer level is equal to half the buffer size on average. Buffer level is
  * measured only after USB packets have arrived and count towards the buffer level.
  */
-#define AUDIO_BUFFER_TARGET_FILL_LEVEL (AUDIO_BUFFER_LENGTH / 2u + AUDIO_PACKET_SIZE / 2u)
+#define AUDIO_BUFFER_TARGET_FILL_LEVEL_BYTES (AUDIO_BUFFER_SIZE / 2u + AUDIO_PACKET_SIZE / 2u)
 
 /**
- * @brief The allowed margin for the buffer fill level in samples.
+ * @brief The allowed margin for the buffer fill level in bytes.
  * @details If the actual fill level is closer to zero or the end of the buffer than specified by the value, this
  * application attempts to force the host to adjust fill level by means of changing the reported feedback value.
  *
@@ -139,17 +120,17 @@
  * - the host adheres to the provided feedback, and does not drop packets, and
  * - does not send excessive amounts of data.
  */
-#define AUDIO_BUFFER_FILL_LEVEL_MARGIN (AUDIO_PACKET_SIZE / 4u)
+#define AUDIO_BUFFER_FILL_MARGIN_BYTES (AUDIO_PACKET_SIZE / 2u)
 
 /**
- * @brief The lower boundary for the buffer fill level in samples.
+ * @brief The lower boundary for the buffer fill level in bytes.
  */
-#define AUDIO_BUFFER_MIN_FILL_LEVEL (AUDIO_BUFFER_TARGET_FILL_LEVEL - AUDIO_BUFFER_FILL_LEVEL_MARGIN)
+#define AUDIO_BUFFER_MIN_FILL_LEVEL_BYTES (AUDIO_BUFFER_TARGET_FILL_LEVEL_BYTES - AUDIO_BUFFER_FILL_MARGIN_BYTES)
 
 /**
- * @brief The upper boundary for the buffer fill level in samples.
+ * @brief The upper boundary for the buffer fill level in bytes.
  */
-#define AUDIO_BUFFER_MAX_FILL_LEVEL (AUDIO_BUFFER_TARGET_FILL_LEVEL + AUDIO_BUFFER_FILL_LEVEL_MARGIN)
+#define AUDIO_BUFFER_MAX_FILL_LEVEL_BYTES (AUDIO_BUFFER_TARGET_FILL_LEVEL_BYTES + AUDIO_BUFFER_FILL_MARGIN_BYTES)
 
 /**
  * @brief The amount by which the feedback value is adjusted, when the buffer fill level is critical.
@@ -169,13 +150,24 @@
 #define AUDIO_FEEDBACK_BUFFER_SIZE 3u
 
 // Sanity checks.
+#if AUDIO_SAMPLE_RATE_HZ != 48000u
+#error "Unsupported sample rate. Must be 48 kHz."
+#endif
+
+#if (AUDIO_RESOLUTION_BIT != 16u) && (AUDIO_RESOLUTION_BIT != 24u)
+#error "Unsupported audio resolution. Must be 16 or 32 bit."
+#endif
 
 #if AUDIO_MAX_PACKET_SIZE < AUDIO_PACKET_SIZE
 #error "The maximum audio packet size should be larger than the regular packet size."
 #endif
 
-#if AUDIO_BUFFER_MIN_FILL_LEVEL > AUDIO_BUFFER_MAX_FILL_LEVEL
+#if AUDIO_BUFFER_MIN_FILL_LEVEL_BYTES > AUDIO_BUFFER_MAX_FILL_LEVEL_BYTES
 #error "Inconsistent settings, sample count tolerance likely too large."
+#endif
+
+#if AUDIO_MAX_PACKET_SIZE > 436u
+#error "Maximum audio packet size too large."
 #endif
 
 // Endpoint numbers.
@@ -217,7 +209,7 @@ enum audio_channel {
  * @brief A structure that holds the state of the audio sample rate feedback.
  */
 struct audio_feedback {
-    enum audio_feedback_correction_state correction;
+    enum audio_feedback_correction_state correction_state;   ///< The state of forced feedback value correction.
     bool                                 b_is_first_sof;     ///< If true, the first SOF packet is yet to be received.
     bool                                 b_is_valid;         ///< Is true, if the feedback value is valid.
     size_t                               sof_package_count;  ///< Counts the SOF packages since the last
@@ -232,15 +224,15 @@ struct audio_feedback {
  * @brief A structure that holds the state of audio playback, as well as the audio buffer.
  */
 struct audio_playback {
-    uint16_t buffer[AUDIO_BUFFER_LENGTH + AUDIO_MAX_PACKET_SIZE / AUDIO_SAMPLE_SIZE];  ///< The audio sample buffer.
-    uint16_t buffer_write_offset;  ///< The current write offset (USB).
-    uint16_t buffer_read_offset;   ///< The current read offset (I2S).
-    uint16_t fill_level;           ///< The distance between read (I2S) and write (USB)
-                                   ///< memory locations, in units of audio samples.
-    bool b_streaming_enabled;      ///< True, if audio streaming is enabled, and
-                                   ///< data is being received via USB.
-    bool b_output_enabled;         ///< True, if the audio output is enabled, and data
-                                   ///< is being output via I2S.
+    uint8_t buffer[AUDIO_BUFFER_SIZE + AUDIO_MAX_PACKET_SIZE];  ///< The audio sample buffer.
+    size_t  buffer_write_offset;                                ///< The current write offset in bytes (USB).
+    size_t  buffer_read_offset;                                 ///< The current read offset in bytes (I2S).
+    size_t  buffer_fill_level_bytes;  ///< The fill level, which is the distance between read (I2S) and write (USB)
+                                      ///< memory locations, in bytes.
+    bool b_streaming_enabled;         ///< True, if audio streaming is enabled, and
+                                      ///< data is being received via USB.
+    bool b_output_enabled;            ///< True, if the audio output is enabled, and data
+                                      ///< is being output via I2S.
 };
 
 /**

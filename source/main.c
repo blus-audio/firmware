@@ -75,6 +75,10 @@ static THD_FUNCTION(reporting_thread, arg) {
     sdStart(&SD2, NULL);
     chRegSetThreadName("reporting");
 
+    chprintf(p_stream, "Using %u byte per sample at %lu Hz, %lu byte per frame.\n", AUDIO_SAMPLE_SIZE,
+             AUDIO_SAMPLE_RATE_HZ, AUDIO_PACKET_SIZE);
+    chprintf(p_stream, "Audio buffer holds %lu bytes (%lu packets).\n", AUDIO_BUFFER_SIZE, AUDIO_BUFFER_PACKET_COUNT);
+
     while (true) {
         tas2780_ensure_active_all();
 
@@ -87,8 +91,7 @@ static THD_FUNCTION(reporting_thread, arg) {
         chprintf(p_stream, "Volume: %li / %li dB\n", (audio_channel_get_volume(AUDIO_CHANNEL_LEFT) >> 8),
                  (audio_channel_get_volume(AUDIO_CHANNEL_RIGHT) >> 8));
 
-        chprintf(p_stream, "Audio buffer fill level: %lu / %lu (margins %lu / %lu)\n", audio_get_fill_level(),
-                 AUDIO_BUFFER_LENGTH, AUDIO_BUFFER_MIN_FILL_LEVEL, AUDIO_BUFFER_MAX_FILL_LEVEL);
+        chprintf(p_stream, "Audio buffer fill level: %lu / %lu\n", audio_get_fill_level(), AUDIO_BUFFER_SIZE);
 
         chThdSleepMilliseconds(500);
     }
