@@ -65,7 +65,15 @@ static inline void value_to_byte_array(uint8_t* p_bytes, uint32_t value, size_t 
  * value itself wraps back to zero.
  * @return size_t The wrapped value.
  */
-static inline size_t wrap_unsigned(size_t value, size_t max_value) { return value - ((value / max_value) * max_value); }
+static inline size_t wrap_unsigned(size_t value, size_t max_value) {
+    size_t temporary_value = value;
+
+    while (temporary_value > max_value) {
+        temporary_value -= max_value;
+    }
+
+    return temporary_value;
+}
 
 /**
  * @brief Calculates the difference of unsigned values on a circular range of values.
