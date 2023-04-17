@@ -34,8 +34,11 @@ static const I2SConfig g_i2s_config = {.tx_buffer = (const uint8_t *)g_audio_con
                                        .rx_buffer = NULL,
                                        .size      = AUDIO_BUFFER_SIZE / AUDIO_SAMPLE_SIZE,  // Number of samples.
                                        .end_cb    = NULL,
-                                       // FIXME: use for 24 bit audio.
-                                       // .i2scfgr   = SPI_I2SCFGR_DATLEN_1,
+#if AUDIO_RESOLUTION_BIT == 16u
+                                       .i2scfgr = 0u,
+#elif AUDIO_RESOLUTION_BIT == 32u
+                                       .i2scfgr = SPI_I2SCFGR_DATLEN_1,
+#endif
                                        .i2spr = SPI_I2SPR_MCKOE | (SPI_I2SPR_I2SDIV & 6)};
 
 /**
@@ -348,14 +351,18 @@ void audio_feedback_cb(USBDriver *usbp, usbep_t ep) {
  * buffer. The audio buffer is large enough to handle excess data of size \a AUDIO_MAX_PACKET_SIZE.
  * @param transaction_size The received audio byte count.
  */
-void audio_update_buffer(size_t transaction_size) {
+static inline void audio_update_buffer(size_t transaction_size) {
+    if (transaction_size == 0u) {
+        return;
+    }
+
     volatile struct audio_playback *p_playback              = &g_audio_context.playback;
     size_t                          new_buffer_write_offset = p_playback->buffer_write_offset + transaction_size;
 
     // Copy excessive data back to the start of the audio buffer.
     if (new_buffer_write_offset > AUDIO_BUFFER_SIZE) {
-        for (size_t byte_index = AUDIO_BUFFER_SIZE; byte_index < new_buffer_write_offset; byte_index++) {
-            p_playback->buffer[byte_index - AUDIO_BUFFER_SIZE] = p_playback->buffer[byte_index];
+        for (size_t offset = AUDIO_BUFFER_SIZE; offset < new_buffer_write_offset; offset++) {
+            p_playback->buffer[offset - AUDIO_BUFFER_SIZE] = p_playback->buffer[offset];
         }
     }
 
@@ -366,12 +373,21 @@ void audio_update_buffer(size_t transaction_size) {
  * @brief Determine the I2S DMA's current read offset from the audio buffer start.
  * @details The information is stored in the \a audio_playback structure.
  */
-void audio_update_read_offset(void) {
-    volatile struct audio_playback *p_playback = &g_audio_context.playback;
+static inline void audio_update_read_offset(void) {
+    volatile struct audio_playback *p_playback              = &g_audio_context.playback;
+    size_t                          number_of_data_register = (size_t)(I2S_DRIVER.dmatx->stream->NDTR);
+
+    // For 16 bit audio, the number of data register (NDTR) holds the number of remaining audio samples.
+    size_t transferrable_sample_count = number_of_data_register;
+
+#if AUDIO_RESOLUTION_BIT == 32u
+    // For 32 bit audio, the number of data register still counts 16 bit wide samples.
+    transferrable_sample_count /= 2u;
+#endif
 
     if (I2S_DRIVER.state == I2S_ACTIVE) {
         p_playback->buffer_read_offset =
-            (size_t)AUDIO_BUFFER_SIZE - ((size_t)AUDIO_SAMPLE_SIZE * (size_t)(I2S_DRIVER.dmatx->stream->NDTR));
+            (size_t)AUDIO_BUFFER_SIZE - (size_t)AUDIO_SAMPLE_SIZE * transferrable_sample_count;
     } else {
         p_playback->buffer_read_offset = 0u;
     }
@@ -382,7 +398,7 @@ void audio_update_read_offset(void) {
  * @details This is the difference in bytes between the write pointer (USB) and read pointer (I2S DMA) - the number of
  * bytes that can still be written via I2S, before the buffer runs out.
  */
-void audio_update_fill_level(void) {
+static inline void audio_update_fill_level(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     // Calculate the distance between the DMA read pointer, and the USB driver's write pointer in the playback buffer.
@@ -395,7 +411,7 @@ void audio_update_fill_level(void) {
  * @details Start I2S transfers by emitting \a AUDIO_EVENT_START_PLAYBACK event, when the target audio buffer fill level
  * is reached.
  */
-void audio_handle_valid_packet(void) {
+static inline void audio_handle_valid_packet(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     if (p_playback->b_output_enabled) {
@@ -415,7 +431,7 @@ void audio_handle_valid_packet(void) {
  * @details Emits an \a AUDIO_EVENT_STOP_PLAYBACK event.
  * @note This internally uses I-class functions.
  */
-void audio_handle_empty_packet(void) {
+static inline void audio_handle_empty_packet(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     if (p_playback->b_output_enabled) {
@@ -442,19 +458,19 @@ void audio_received_cb(USBDriver *usbp, usbep_t ep) {
 
     size_t transaction_size = usbGetReceiveTransactionSizeX(usbp, ep);
 
+    chSysLockFromISR();
+
     audio_update_buffer(transaction_size);
+    usbStartReceiveI(usbp, ep, (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
+
     audio_update_read_offset();
     audio_update_fill_level();
-
-    chSysLockFromISR();
 
     if (transaction_size == 0) {
         audio_handle_empty_packet();
     } else {
         audio_handle_valid_packet();
     }
-
-    usbStartReceiveI(usbp, ep, (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
 
     chSysUnlockFromISR();
 }

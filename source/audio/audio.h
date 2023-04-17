@@ -51,12 +51,12 @@
 #define AUDIO_EVENT_STOP_STREAMING EVENT_MASK(2u)
 
 /**
- * @brief Start I2S audio blayback.
+ * @brief Start I2S audio playback.
  */
 #define AUDIO_EVENT_START_PLAYBACK EVENT_MASK(3u)
 
 /**
- * @brief Stop I2S audio blayback.
+ * @brief Stop I2S audio playback.
  */
 #define AUDIO_EVENT_STOP_PLAYBACK EVENT_MASK(4u)
 
@@ -96,8 +96,10 @@
  * @brief The maximum audio packet size to be received, in bytes.
  * @details Due to the feedback mechanism, a frame can be larger than the regular \a AUDIO_PACKET_SIZE. If the device
  * reports a too low sample rate, the host has to send a larger packet.
+ * @note Reserve an extra number of full samples, e.g. eight.
+ * @warning Do not choose a value that might cause the total amount of available RX FIFO buffer to be exceeded.
  */
-#define AUDIO_MAX_PACKET_SIZE (2 * AUDIO_PACKET_SIZE)
+#define AUDIO_MAX_PACKET_SIZE (AUDIO_PACKET_SIZE + 8u * AUDIO_SAMPLE_SIZE)
 
 /**
  * @brief The size of the audio buffer in bytes.
@@ -154,8 +156,8 @@
 #error "Unsupported sample rate. Must be 48 kHz."
 #endif
 
-#if (AUDIO_RESOLUTION_BIT != 16u) && (AUDIO_RESOLUTION_BIT != 24u)
-#error "Unsupported audio resolution. Must be 16 or 32 bit."
+#if (AUDIO_RESOLUTION_BIT != 16u) && (AUDIO_RESOLUTION_BIT != 32u)
+#error "Unsupported audio resolution. Must be 16, or 32 bit."
 #endif
 
 #if AUDIO_MAX_PACKET_SIZE < AUDIO_PACKET_SIZE
@@ -164,10 +166,6 @@
 
 #if AUDIO_BUFFER_MIN_FILL_LEVEL_BYTES > AUDIO_BUFFER_MAX_FILL_LEVEL_BYTES
 #error "Inconsistent settings, sample count tolerance likely too large."
-#endif
-
-#if AUDIO_MAX_PACKET_SIZE > 436u
-#error "Maximum audio packet size too large."
 #endif
 
 // Endpoint numbers.
@@ -189,12 +187,8 @@
  */
 enum audio_feedback_correction_state {
     AUDIO_FEEDBACK_CORRECTION_STATE_OFF,       ///< No feedback correction active.
-    AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE,  ///< Decrease the feedback value
-                                               ///< in case of over-filled audio
-                                               ///< buffer.
-    AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE   ///< Increase the feedback value
-                                               ///< in case of under-filled audio
-                                               ///< buffer.
+    AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE,  ///< Decrease the feedback value < in case of over-filled audio < buffer.
+    AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE  ///< Increase the feedback value < in case of under-filled audio < buffer.
 };
 
 /**
