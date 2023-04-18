@@ -15,5 +15,17 @@
         "**/Thumbs.db": true,
         "**/.dep": true,
         "**/build": true
-    }
+    },
+    "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools",
+    "makefile.configurations": [
+        {
+            "name": "defaultConfig",
+            "makeArgs": [
+                "-j"
+            ],
+            "problemMatchers": [
+                "$gcc"
+            ],
+        }
+    ]
 }

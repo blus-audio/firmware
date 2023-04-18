@@ -346,24 +346,21 @@ void audio_feedback_cb(USBDriver *usbp, usbep_t ep) {
 }
 
 /**
- * @brief Update the audio buffer write pointer, taking into account wrap-around of the circular buffer.
+ * @brief Update the audio buffer write offset, taking into account wrap-around of the circular buffer.
  * @details If the nominal buffer size was exceeded by the last packet, the excess is copied to the beginning of the
  * buffer. The audio buffer is large enough to handle excess data of size \a AUDIO_MAX_PACKET_SIZE.
  * @param transaction_size The received audio byte count.
  */
-static inline void audio_update_buffer(size_t transaction_size) {
-    if (transaction_size == 0u) {
-        return;
-    }
-
+static inline void audio_update_write_offset(size_t transaction_size) {
     volatile struct audio_playback *p_playback              = &g_audio_context.playback;
     size_t                          new_buffer_write_offset = p_playback->buffer_write_offset + transaction_size;
 
+    chDbgAssert(new_buffer_write_offset < ARRAY_LENGTH(p_playback->buffer), "Transaction exceeds audio buffer.");
+
     // Copy excessive data back to the start of the audio buffer.
     if (new_buffer_write_offset > AUDIO_BUFFER_SIZE) {
-        for (size_t offset = AUDIO_BUFFER_SIZE; offset < new_buffer_write_offset; offset++) {
-            p_playback->buffer[offset - AUDIO_BUFFER_SIZE] = p_playback->buffer[offset];
-        }
+        size_t excess_byte_count = new_buffer_write_offset - AUDIO_BUFFER_SIZE;
+        memcpy((void *)p_playback->buffer, (void *)&p_playback->buffer[AUDIO_BUFFER_SIZE], excess_byte_count);
     }
 
     p_playback->buffer_write_offset = wrap_unsigned(new_buffer_write_offset, AUDIO_BUFFER_SIZE);
@@ -395,23 +392,22 @@ static inline void audio_update_read_offset(void) {
 
 /**
  * @brief Calculate the audio buffer fill level.
- * @details This is the difference in bytes between the write pointer (USB) and read pointer (I2S DMA) - the number of
+ * @details This is the difference in bytes between the write offset (USB) and read offset (I2S DMA) - the number of
  * bytes that can still be written via I2S, before the buffer runs out.
  */
 static inline void audio_update_fill_level(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
-    // Calculate the distance between the DMA read pointer, and the USB driver's write pointer in the playback buffer.
+    // Calculate the distance between the DMA read offset, and the USB driver's write offset in the playback buffer.
     p_playback->buffer_fill_level_bytes =
         subtract_circular_unsigned(p_playback->buffer_write_offset, p_playback->buffer_read_offset, AUDIO_BUFFER_SIZE);
 }
 
 /**
- * @brief Handle non-zero audio packets (regular playback).
- * @details Start I2S transfers by emitting \a AUDIO_EVENT_START_PLAYBACK event, when the target audio buffer fill level
- * is reached.
+ * @brief Start playback, when the target audio buffer fill level is reached.
+ * @details I2S transfers are started by emitting the \a AUDIO_EVENT_START_PLAYBACK event.
  */
-static inline void audio_handle_valid_packet(void) {
+static inline void audio_start_playback(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     if (p_playback->b_output_enabled) {
@@ -431,7 +427,7 @@ static inline void audio_handle_valid_packet(void) {
  * @details Emits an \a AUDIO_EVENT_STOP_PLAYBACK event.
  * @note This internally uses I-class functions.
  */
-static inline void audio_handle_empty_packet(void) {
+static inline void audio_stop_playback(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     if (p_playback->b_output_enabled) {
@@ -460,17 +456,18 @@ void audio_received_cb(USBDriver *usbp, usbep_t ep) {
 
     chSysLockFromISR();
 
-    audio_update_buffer(transaction_size);
+    if (transaction_size == 0u) {
+        audio_stop_playback();
+    } else {
+        // Samples have been written by the USB DMA.
+        audio_update_write_offset(transaction_size);
+    }
+
     usbStartReceiveI(usbp, ep, (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
 
     audio_update_read_offset();
     audio_update_fill_level();
-
-    if (transaction_size == 0) {
-        audio_handle_empty_packet();
-    } else {
-        audio_handle_valid_packet();
-    }
+    audio_start_playback();
 
     chSysUnlockFromISR();
 }
@@ -642,13 +639,13 @@ bool audio_control_cb(USBDriver *usbp, uint8_t iface, uint8_t entity, uint8_t re
 }
 
 /**
- * @brief The start-playback callback.
+ * @brief Start streaming audio via USB.
  * @details Is called, when the audio endpoint goes into its operational alternate mode (actual music playback begins).
  * It broadcasts the \a AUDIO_EVENT_START_STREAMING event.
  *
  * @param usbp The pointer to the USB driver structure.
  */
-void start_playback_cb(USBDriver *usbp) {
+void audio_start_streaming(USBDriver *usbp) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     if (!p_playback->b_streaming_enabled) {
@@ -671,13 +668,13 @@ void start_playback_cb(USBDriver *usbp) {
 }
 
 /**
- * @brief The stop-playback callback.
+ * @brief Disable audio streaming and output.
  * @details Is called on USB reset, or when the audio endpoint goes into its zero bandwidth alternate mode. It
  * broadcasts the \a AUDIO_EVENT_STOP_STREAMING and \a AUDIO_EVENT_STOP_PLAYBACK events.
  *
  * @param usbp The pointer to the USB driver structure.
  */
-void audio_stop_playback_cb(USBDriver *usbp) {
+void audio_stop_streaming(USBDriver *usbp) {
     (void)usbp;
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
@@ -707,9 +704,9 @@ bool audio_requests_hook_cb(USBDriver *usbp) {
             /* Switch between empty interface and normal one. */
             if (((usbp->setup[5] << 8) | usbp->setup[4]) == AUDIO_STREAMING_INTERFACE) {
                 if (((usbp->setup[3] << 8) | usbp->setup[2]) == 1) {
-                    start_playback_cb(usbp);
+                    audio_start_streaming(usbp);
                 } else {
-                    audio_stop_playback_cb(usbp);
+                    audio_stop_streaming(usbp);
                 }
                 usbSetupTransfer(usbp, NULL, 0, NULL);
                 return true;

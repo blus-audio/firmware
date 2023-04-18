@@ -82,7 +82,7 @@ void usb_event_cb(USBDriver *usbp, usbevent_t event) {
         case USB_EVENT_UNCONFIGURED:
             // Falls into...
         case USB_EVENT_SUSPEND:
-            audio_stop_playback_cb(usbp);
+            audio_stop_streaming(usbp);
             return;
         case USB_EVENT_WAKEUP:
             return;

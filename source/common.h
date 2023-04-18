@@ -68,7 +68,7 @@ static inline void value_to_byte_array(uint8_t* p_bytes, uint32_t value, size_t 
 static inline size_t wrap_unsigned(size_t value, size_t max_value) {
     size_t temporary_value = value;
 
-    while (temporary_value > max_value) {
+    while (temporary_value >= max_value) {
         temporary_value -= max_value;
     }
 

@@ -266,7 +266,7 @@ int16_t         audio_channel_get_volume(enum audio_channel audio_channel);
 uint16_t        audio_get_fill_level(void);
 
 void            audio_setup(void);
-void            audio_stop_playback_cb(USBDriver *usbp);
+void            audio_stop_streaming(USBDriver *usbp);
 bool            audio_requests_hook_cb(USBDriver *usbp);
 void            audio_received_cb(USBDriver *usbp, usbep_t ep);
 void            audio_feedback_cb(USBDriver *usbp, usbep_t ep);
