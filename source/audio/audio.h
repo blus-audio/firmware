@@ -187,16 +187,17 @@
  */
 enum audio_feedback_correction_state {
     AUDIO_FEEDBACK_CORRECTION_STATE_OFF,       ///< No feedback correction active.
-    AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE,  ///< Decrease the feedback value < in case of over-filled audio < buffer.
-    AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE  ///< Increase the feedback value < in case of under-filled audio < buffer.
+    AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE,  ///< Decrease the feedback value in case of over-filled audio buffer.
+    AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE   ///< Increase the feedback value in case of under-filled audio buffer.
 };
 
 /**
  * @brief The audio channel (left or right).
  */
 enum audio_channel {
-    AUDIO_CHANNEL_LEFT  = 0u,  ///< The left audio channel.
-    AUDIO_CHANNEL_RIGHT = 1u   ///< The right audio channel.
+    AUDIO_CHANNEL_LEFT   = 0x00u,  ///< The left audio channel.
+    AUDIO_CHANNEL_RIGHT  = 0x01u,  ///< The right audio channel.
+    AUDIO_MASTER_CHANNEL = 0xFFU,  ///< The audio master channel captures all channels.
 };
 
 /**

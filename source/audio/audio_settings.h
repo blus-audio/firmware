@@ -19,7 +19,7 @@
 /**
  * @brief The resolution of an audio sample in bits.
  */
-#define AUDIO_RESOLUTION_BIT 16u
+#define AUDIO_RESOLUTION_BIT 32u
 
 /**
  * @brief The number of complete audio packets to hold in the audio buffer.

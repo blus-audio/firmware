@@ -22,7 +22,6 @@ static event_source_t g_audio_event_source;
 
 /**
  * @brief The global audio context.
- * @details Can be shared with other modules by means of \a audio_get_context().
  */
 static volatile struct audio_context g_audio_context;
 
@@ -46,21 +45,14 @@ static const I2SConfig g_i2s_config = {.tx_buffer = (const uint8_t *)g_audio_con
  *
  * @return event_source_t* The pointer to the event source.
  */
-event_source_t *audio_get_event_source(void) { return &g_audio_event_source; }
-
-/**
- * @brief Get the global audio context.
- *
- * @return volatile struct* The pointer to the audio context.
- */
-volatile struct audio_context *audio_get_context(void) { return &g_audio_context; }
+inline event_source_t *audio_get_event_source(void) { return &g_audio_event_source; }
 
 /**
  * @brief Get the audio buffer fill level.
  *
  * @return uint16_t The fill level.
  */
-uint16_t audio_get_fill_level(void) { return g_audio_context.playback.buffer_fill_level_bytes; }
+inline uint16_t audio_get_fill_level(void) { return g_audio_context.playback.buffer_fill_level_bytes; }
 
 /**
  * @brief Check the mute state of an audio channel.
@@ -69,7 +61,7 @@ uint16_t audio_get_fill_level(void) { return g_audio_context.playback.buffer_fil
  * @return true if the channel is muted.
  * @return false if the channel is not muted.
  */
-bool audio_channel_is_muted(enum audio_channel audio_channel) {
+inline bool audio_channel_is_muted(enum audio_channel audio_channel) {
     return g_audio_context.control.b_channel_mute_states[audio_channel];
 }
 
@@ -79,7 +71,7 @@ bool audio_channel_is_muted(enum audio_channel audio_channel) {
  * @param audio_channel The audio channel, for which to get the volume.
  * @return int16_t The volume level in 8.8 fractional dB.
  */
-int16_t audio_channel_get_volume(enum audio_channel audio_channel) {
+inline int16_t audio_channel_get_volume(enum audio_channel audio_channel) {
     return g_audio_context.control.channel_volume_levels_8q8_db[audio_channel];
 }
 
@@ -89,21 +81,23 @@ int16_t audio_channel_get_volume(enum audio_channel audio_channel) {
  * @return true if streaming is enabled.
  * @return false if streaming is disabled.
  */
-bool audio_is_streaming(void) { return g_audio_context.playback.b_streaming_enabled; }
+inline bool audio_is_streaming(void) { return g_audio_context.playback.b_streaming_enabled; }
 
 /**
  * @brief Initialize the audio diagnostics structure.
  *
  * @param p_diagnostics The pointer to the structure to initialize.
  */
-void audio_init_diagnostics(volatile struct audio_diagnostics *p_diagnostics) { p_diagnostics->error_count = 0u; }
+static void audio_init_diagnostics(volatile struct audio_diagnostics *p_diagnostics) {
+    p_diagnostics->error_count = 0u;
+}
 
 /**
  * @brief Initialize the audio feedback structure.
  *
  * @param p_feedback The pointer to the structure to initialize.
  */
-void audio_init_feedback(volatile struct audio_feedback *p_feedback) {
+static void audio_init_feedback(volatile struct audio_feedback *p_feedback) {
     p_feedback->correction_state   = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
     p_feedback->b_is_first_sof     = true;
     p_feedback->b_is_valid         = false;
@@ -117,7 +111,7 @@ void audio_init_feedback(volatile struct audio_feedback *p_feedback) {
  *
  * @param p_playback The pointer to the structure to initialize.
  */
-void audio_init_playback(volatile struct audio_playback *p_playback) {
+static void audio_init_playback(volatile struct audio_playback *p_playback) {
     p_playback->buffer_write_offset     = 0u;
     p_playback->buffer_read_offset      = 0u;
     p_playback->buffer_fill_level_bytes = 0u;
@@ -130,7 +124,7 @@ void audio_init_playback(volatile struct audio_playback *p_playback) {
  *
  * @param p_control The pointer to the structure to initialize.
  */
-void audio_init_control(volatile struct audio_control *p_control) {
+static void audio_init_control(volatile struct audio_control *p_control) {
     p_control->channel             = 0u;
     p_control->local_volume_8q8_db = 0;
 
@@ -145,7 +139,7 @@ void audio_init_control(volatile struct audio_control *p_control) {
  *
  * @param p_context The pointer to the context to initialize.
  */
-void audio_init_context(volatile struct audio_context *p_context) {
+static void audio_init_context(volatile struct audio_context *p_context) {
     chEvtObjectInit(&g_audio_event_source);
     audio_init_feedback(&p_context->feedback);
     audio_init_playback(&p_context->playback);
@@ -167,7 +161,7 @@ void audio_init_context(volatile struct audio_context *p_context) {
  * buffer may underrun, which needs to be compensated manually. This audio feedback correction function is a workaround
  * for that symptom.
  */
-void audio_feedback_correct(void) {
+static void audio_feedback_correct(void) {
     volatile struct audio_feedback    *p_feedback    = &g_audio_context.feedback;
     volatile struct audio_playback    *p_playback    = &g_audio_context.playback;
     volatile struct audio_diagnostics *p_diagnostics = &g_audio_context.diagnostics;
@@ -248,7 +242,7 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
 
     // Feedback value is calculated every 64 SOF interrupts => every 64 ms.
     p_feedback->sof_package_count++;
-    if (p_feedback->sof_package_count == 64) {
+    if (p_feedback->sof_package_count == 64u) {
         // Conveniently, the timer count difference at 64 ms count periods matches the required feedback format. The
         // feedback endpoint requires the device sample rate in kHz in a 10.14 binary (fixpoint) format.
         // - The master clock runs 256 times as fast as the reference clock.
@@ -256,7 +250,7 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
         // - The counting period is 64 ms long.
         //
         // Thus
-        //   fs / kHz * 2**14 = fs * 256 * 64e-3 s
+        //   fs / kHz * 2**14 = fs * 256 * 64 ms
         //
         // where the left side is the expected format, and the right side the result of this counting function.
         p_feedback->value = subtract_circular_unsigned(counter_value, p_feedback->last_counter_value, UINT32_MAX);
@@ -281,7 +275,7 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
  * @brief Set up the timer peripheral for counting USB start of frame (SOF) periods.
  * @note Only start after the I2S peripheral is running. Its MCLK output clocks this timer.
  */
-void audio_start_sof_capture(void) {
+static inline void audio_start_sof_capture(void) {
     chSysLock();
     chDbgAssert(I2S_DRIVER.state == I2S_ACTIVE, "Only start SOF capture after the I2S driver.");
 
@@ -307,7 +301,7 @@ void audio_start_sof_capture(void) {
 /**
  * @brief Stop the timer peripheral for counting USB start of frame (SOF) periods.
  */
-void audio_stop_sof_capture(void) {
+static inline void audio_stop_sof_capture(void) {
     chSysLock();
     nvicDisableVector(STM32_TIM2_NUMBER);
     TIM2->CR1 = 0;
@@ -355,7 +349,23 @@ static inline void audio_update_write_offset(size_t transaction_size) {
     volatile struct audio_playback *p_playback              = &g_audio_context.playback;
     size_t                          new_buffer_write_offset = p_playback->buffer_write_offset + transaction_size;
 
-    chDbgAssert(new_buffer_write_offset < ARRAY_LENGTH(p_playback->buffer), "Transaction exceeds audio buffer.");
+    chDbgAssert(new_buffer_write_offset < ARRAY_LENGTH(p_playback->buffer), "Transaction size exceeds audio buffer.");
+
+#if AUDIO_RESOLUTION_BIT == 32u
+    // Swap upper and lower 16 bit of received audio samples to comply with the expected I2S DMA data format.
+    for (size_t sample_index = 0; sample_index < transaction_size / AUDIO_SAMPLE_SIZE; sample_index++) {
+        size_t    sample_offset       = p_playback->buffer_write_offset + AUDIO_SAMPLE_SIZE * sample_index;
+
+        uint16_t *p_lower_sample_half = (uint16_t *)(&p_playback->buffer[sample_offset]);
+        uint16_t *p_upper_sample_half = (uint16_t *)(&p_playback->buffer[sample_offset + sizeof(uint16_t)]);
+
+        uint16_t  lower_sample_half   = *p_lower_sample_half;
+        uint16_t  upper_sample_half   = *p_upper_sample_half;
+
+        *p_upper_sample_half          = lower_sample_half;
+        *p_lower_sample_half          = upper_sample_half;
+    }
+#endif
 
     // Copy excessive data back to the start of the audio buffer.
     if (new_buffer_write_offset > AUDIO_BUFFER_SIZE) {
@@ -477,7 +487,7 @@ void audio_received_cb(USBDriver *usbp, usbep_t ep) {
  *
  * @param usbp A pointer to the USB driver structure.
  */
-static void audio_notify_volume_cb(USBDriver *usbp) {
+static void audio_update_volumes(USBDriver *usbp) {
     (void)usbp;
     volatile struct audio_control *p_control = &g_audio_context.control;
 
@@ -502,11 +512,11 @@ static void audio_notify_volume_cb(USBDriver *usbp) {
  *
  * @param usbp A pointer to the USB driver structure.
  */
-static void audio_notify_mute_cb(USBDriver *usbp) {
+static void audio_update_mute_states(USBDriver *usbp) {
     (void)usbp;
     volatile struct audio_control *p_control = &g_audio_context.control;
 
-    if (p_control->channel == 0xFFu) {
+    if (p_control->channel == AUDIO_MASTER_CHANNEL) {
         p_control->b_channel_mute_states[AUDIO_CHANNEL_LEFT]  = p_control->buffer[1u];
         p_control->b_channel_mute_states[AUDIO_CHANNEL_RIGHT] = p_control->buffer[2u];
     } else {
@@ -532,7 +542,8 @@ static void audio_notify_mute_cb(USBDriver *usbp) {
  * @return true in case of a successful request handling.
  * @return false in case of an unknown request, or an inconsistent request.
  */
-bool audio_handle_request_cb(USBDriver *usbp, uint8_t req, uint8_t ctrl, uint8_t channel, uint16_t length) {
+static bool audio_handle_function_unit_request(USBDriver *usbp, uint8_t req, uint8_t ctrl, uint8_t channel,
+                                               uint16_t length) {
     volatile struct audio_control *p_control = &g_audio_context.control;
     uint8_t                       *p_buffer  = (uint8_t *)p_control->buffer;
 
@@ -599,11 +610,11 @@ bool audio_handle_request_cb(USBDriver *usbp, uint8_t req, uint8_t ctrl, uint8_t
         case UAC_REQ_SET_CUR:
             if (ctrl == UAC_FU_MUTE_CONTROL) {
                 p_control->channel = channel;
-                usbSetupTransfer(usbp, p_buffer, length, audio_notify_mute_cb);
+                usbSetupTransfer(usbp, p_buffer, length, audio_update_mute_states);
                 return true;
             } else if (ctrl == UAC_FU_VOLUME_CONTROL) {
                 p_control->channel = channel;
-                usbSetupTransfer(usbp, p_buffer, length, audio_notify_volume_cb);
+                usbSetupTransfer(usbp, p_buffer, length, audio_update_volumes);
                 return true;
             }
             break;
@@ -632,7 +643,7 @@ bool audio_control_cb(USBDriver *usbp, uint8_t iface, uint8_t entity, uint8_t re
     if (iface == AUDIO_CONTROL_INTERFACE) {
         /* Feature unit */
         if (entity == AUDIO_FUNCTION_UNIT_ID) {
-            return audio_handle_request_cb(usbp, req, (wValue >> 8) & 0xFF, wValue & 0xFF, length);
+            return audio_handle_function_unit_request(usbp, req, (wValue >> 8) & 0xFF, wValue & 0xFF, length);
         }
     }
     return false;
@@ -645,7 +656,7 @@ bool audio_control_cb(USBDriver *usbp, uint8_t iface, uint8_t entity, uint8_t re
  *
  * @param usbp The pointer to the USB driver structure.
  */
-void audio_start_streaming(USBDriver *usbp) {
+static void audio_start_streaming(USBDriver *usbp) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     if (!p_playback->b_streaming_enabled) {

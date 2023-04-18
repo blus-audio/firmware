@@ -93,7 +93,7 @@ static THD_FUNCTION(reporting_thread, arg) {
 
         chprintf(p_stream, "Audio buffer fill level: %lu / %lu\n", audio_get_fill_level(), AUDIO_BUFFER_SIZE);
 
-        chThdSleepMilliseconds(500);
+        chThdSleepMilliseconds(1000);
     }
 }
 #endif

@@ -12,7 +12,7 @@ The project is based upon the real-time operating system [ChibiOs](https://www.c
 # Features
 
 Currently, the firmware supports:
-- 16 bit / 48 kHz audio
+- 16 bit and 32 bit / 48 kHz audio (selectable in [the audio configuration file](./source/audio/audio_settings.h))
 - Mute control, which enables hardware mute on the connected amplifiers
 - Volume control, which controls the amplifier volume directly
 
@@ -21,5 +21,4 @@ The audio stream is never manipulated.
 # Design
 
 The following sections illustrate the functionality and design choices for the firmware package.
-
-##
+This section will be gradually extended.
