@@ -41,7 +41,7 @@ static const I2SConfig g_i2s_config = {.tx_buffer = (const uint8_t *)g_audio_con
                                        .i2spr = SPI_I2SPR_MCKOE | (SPI_I2SPR_I2SDIV & 6)};
 
 /**
- * @brief Get the global audio event source.
+ * @brief Get the global audio event source pointer.
  *
  * @return event_source_t* The pointer to the event source.
  */
@@ -503,7 +503,7 @@ static void audio_update_volumes(USBDriver *usbp) {
         memcpy((int16_t *)&p_control->channel_volume_levels_8q8_db[audio_channel_index], (int16_t *)p_control->buffer,
                sizeof(int16_t));
     }
-    chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_VOLUME);
+    chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_SET_VOLUME);
     chSysUnlockFromISR();
 }
 
@@ -527,7 +527,7 @@ static void audio_update_mute_states(USBDriver *usbp) {
         p_control->b_channel_mute_states[audio_channel_index] = p_control->buffer[0u];
     }
     chSysLockFromISR();
-    chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_MUTE);
+    chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_SET_MUTE_STATE);
     chSysUnlockFromISR();
 }
 
@@ -681,7 +681,7 @@ static void audio_start_streaming(USBDriver *usbp) {
 /**
  * @brief Disable audio streaming and output.
  * @details Is called on USB reset, or when the audio endpoint goes into its zero bandwidth alternate mode. It
- * broadcasts the \a AUDIO_EVENT_STOP_STREAMING and \a AUDIO_EVENT_STOP_PLAYBACK events.
+ * broadcasts the \a AUDIO_EVENT_STOP_STREAMING event.
  *
  * @param usbp The pointer to the USB driver structure.
  */
@@ -695,7 +695,6 @@ void audio_stop_streaming(USBDriver *usbp) {
 
         // Distribute events.
         chSysLockFromISR();
-        chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_STOP_PLAYBACK);
         chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_STOP_STREAMING);
         chSysUnlockFromISR();
     }
@@ -749,7 +748,9 @@ static THD_FUNCTION(audio_thread, arg) {
 
     // Registers this thread for audio events.
     static event_listener_t audio_event_listener;
-    chEvtRegisterMask(&g_audio_event_source, &audio_event_listener, AUDIO_EVENT);
+    chEvtRegisterMaskWithFlags(&g_audio_event_source, &audio_event_listener, AUDIO_EVENT,
+                               AUDIO_EVENT_START_STREAMING | AUDIO_EVENT_STOP_STREAMING | AUDIO_EVENT_START_PLAYBACK |
+                                   AUDIO_EVENT_STOP_PLAYBACK);
 
     // Enable the feedback counter timer TIM2 peripheral clock (no low-power mode).
     rccEnableTIM2(false);
@@ -758,28 +759,31 @@ static THD_FUNCTION(audio_thread, arg) {
         chEvtWaitOne(AUDIO_EVENT);
         eventflags_t event_flags = chEvtGetAndClearFlags(&audio_event_listener);
 
-        // The SOF capture (for feedback calculation) must be started after/stopped before the I2S peripheral - its
-        // master clock output is required for counting the SOF interval.
+        // Generally, the SOF capture (for feedback calculation) must be started after/stopped before the I2S peripheral
+        // - the I2S master clock output is required for counting the SOF interval.
+
+        if (event_flags & AUDIO_EVENT_START_STREAMING) {
+            i2sStart(&I2S_DRIVER, &g_i2s_config);
+
+            // Set volumes to the values configured via USB audio.
+            chEvtBroadcastFlags(&g_audio_event_source, AUDIO_EVENT_SET_VOLUME);
+        }
 
         if (event_flags & AUDIO_EVENT_START_PLAYBACK) {
             i2sStartExchange(&I2S_DRIVER);
             audio_start_sof_capture();
         }
 
-        if (event_flags & AUDIO_EVENT_STOP_PLAYBACK) {
+        if ((event_flags & AUDIO_EVENT_STOP_PLAYBACK) || (event_flags & AUDIO_EVENT_STOP_STREAMING)) {
             audio_stop_sof_capture();
             i2sStopExchange(&I2S_DRIVER);
-        }
 
-        if (event_flags & AUDIO_EVENT_START_STREAMING) {
-            i2sStart(&I2S_DRIVER, &g_i2s_config);
+            if (event_flags & AUDIO_EVENT_STOP_STREAMING) {
+                i2sStop(&I2S_DRIVER);
 
-            // Fire a volume event, for setting the correct DAC volumes on playback.
-            chEvtBroadcastFlags(&g_audio_event_source, AUDIO_EVENT_VOLUME);
-        }
-
-        if (event_flags & AUDIO_EVENT_STOP_STREAMING) {
-            i2sStop(&I2S_DRIVER);
+                // Reset volumes to default.
+                chEvtBroadcastFlags(&g_audio_event_source, AUDIO_EVENT_RESET_VOLUME);
+            }
         }
     }
 }

@@ -124,7 +124,8 @@ int main(void) {
 
     // Registers this thread for audio events.
     static event_listener_t audio_event_listener;
-    chEvtRegisterMask(p_audio_event_source, &audio_event_listener, AUDIO_EVENT);
+    chEvtRegisterMaskWithFlags(p_audio_event_source, &audio_event_listener, AUDIO_EVENT,
+                               AUDIO_EVENT_RESET_VOLUME | AUDIO_EVENT_SET_MUTE_STATE | AUDIO_EVENT_SET_VOLUME);
 
 #if ENABLE_REPORTING == TRUE
     // Create reporting thread.
@@ -136,14 +137,15 @@ int main(void) {
         chEvtWaitOne(AUDIO_EVENT);
         eventflags_t event_flags = chEvtGetAndClearFlags(&audio_event_listener);
 
-        if (event_flags & AUDIO_EVENT_STOP_STREAMING) {
-            // Restore volume levels to maximum, when playback ends.
+        if (event_flags & AUDIO_EVENT_RESET_VOLUME) {
+            // Restore volume levels to maximum when instructed (after streaming ends).
             tas2780_set_volume_all(TAS2780_VOLUME_MAX, TAS2780_CHANNEL_BOTH);
         }
 
         // Joint handling of volume and mute controls. Only adjust volume, when streaming over USB. Other audio sources
         // must not be affected by USB volume adjustments.
-        if (((event_flags & AUDIO_EVENT_MUTE) || (event_flags & AUDIO_EVENT_VOLUME)) && audio_is_streaming()) {
+        if (((event_flags & AUDIO_EVENT_SET_MUTE_STATE) || (event_flags & AUDIO_EVENT_SET_VOLUME)) &&
+            audio_is_streaming()) {
             if (audio_channel_is_muted(AUDIO_CHANNEL_LEFT)) {
                 tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_LEFT);
             } else {

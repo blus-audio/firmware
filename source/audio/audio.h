@@ -36,7 +36,6 @@
 
 /**
  * @brief Audio related events.
- *
  */
 #define AUDIO_EVENT EVENT_MASK(0u)
 
@@ -61,14 +60,19 @@
 #define AUDIO_EVENT_STOP_PLAYBACK EVENT_MASK(4u)
 
 /**
- * @brief Mute state changed.
+ * @brief Set mute states.
  */
-#define AUDIO_EVENT_MUTE EVENT_MASK(5u)
+#define AUDIO_EVENT_SET_MUTE_STATE EVENT_MASK(5u)
 
 /**
- * @brief Volume setting changed.
+ * @brief Set volume levels.
  */
-#define AUDIO_EVENT_VOLUME EVENT_MASK(6u)
+#define AUDIO_EVENT_SET_VOLUME EVENT_MASK(6u)
+
+/**
+ * @brief Reset volume setting.
+ */
+#define AUDIO_EVENT_RESET_VOLUME EVENT_MASK(7u)
 
 /**
  * @brief The number of audio channels - two for stereo.
@@ -260,11 +264,10 @@ struct audio_context {
 };
 
 event_source_t *audio_get_event_source(void);
-
 bool            audio_is_streaming(void);
-bool            audio_channel_is_muted(enum audio_channel audio_channel);
-int16_t         audio_channel_get_volume(enum audio_channel audio_channel);
 uint16_t        audio_get_fill_level(void);
+int16_t         audio_channel_get_volume(enum audio_channel audio_channel);
+bool            audio_channel_is_muted(enum audio_channel audio_channel);
 
 void            audio_setup(void);
 void            audio_stop_streaming(USBDriver *usbp);
