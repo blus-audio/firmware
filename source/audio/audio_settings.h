@@ -28,3 +28,7 @@
 #define AUDIO_BUFFER_PACKET_COUNT 5u
 
 #endif  // SOURCE_AUDIO_AUDIO_SETTINGS_H_
+
+/**
+ * @}
+ */
