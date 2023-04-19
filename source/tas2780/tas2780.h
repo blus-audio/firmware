@@ -183,7 +183,7 @@ struct tas2780_context {
 
 #define TAS2780_NG_CFG0_NG_LVL_POS      (3u)
 #define TAS2780_NG_CFG0_NG_LVL_MASK     (0x03u << TAS2780_NG_CFG0_NG_LVL_POS)
-#define TAS2780_NG_CFG0_NG_LVL_DEFAULT  (0x00u)  ///< 0x00 ... 0x03 (-90 dBFS ... -120 dBFS)
+#define TAS2780_NG_CFG0_NG_LVL_DEFAULT  (0x03u)  ///< 0x00 ... 0x03 (-90 dBFS ... -120 dBFS)
 
 #define TAS2780_NG_CFG0_NG_HYST_POS     (5u)
 #define TAS2780_NG_CFG0_NG_HYST_MASK    (0x03u << TAS2780_NG_CFG0_NG_HYST_POS)
