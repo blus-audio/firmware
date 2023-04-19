@@ -20,10 +20,10 @@ jobs:
     - name: Install Arm GNU Toolchain (arm-none-eabi-gcc)
       uses: carlosperate/arm-none-eabi-gcc-action@v1
     - run: arm-none-eabi-gcc --version
-    
+
     - name: Build application
       run: make -j
-      
+
     - name: Archive build artifacts
       uses: actions/upload-artifact@v3
       with:
