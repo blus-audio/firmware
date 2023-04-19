@@ -1,4 +1,4 @@
-name: C CI
+name: C/C++ CI
 
 on:
   push:
@@ -8,5 +8,12 @@ on:
 
 jobs:
   build:
-    - name: arm-none-eabi-gcc GNU Arm Embedded Toolchain
-      uses: carlosperate/arm-none-eabi-gcc-action@v1.6.1
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: configure
+      run: ./configure
+    - uses: carlosperate/arm-none-eabi-gcc-action@v1
+    - run: arm-none-eabi-gcc --version
