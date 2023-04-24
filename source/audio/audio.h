@@ -40,39 +40,29 @@
 #define AUDIO_EVENT EVENT_MASK(0u)
 
 /**
- * @brief Start streaming audio data from USB.
- */
-#define AUDIO_EVENT_START_STREAMING EVENT_MASK(1u)
-
-/**
- * @brief Stop streaming audio data from USB.
- */
-#define AUDIO_EVENT_STOP_STREAMING EVENT_MASK(2u)
-
-/**
  * @brief Start I2S audio playback.
  */
-#define AUDIO_EVENT_START_PLAYBACK EVENT_MASK(3u)
+#define AUDIO_EVENT_START_PLAYBACK EVENT_MASK(1u)
 
 /**
  * @brief Stop I2S audio playback.
  */
-#define AUDIO_EVENT_STOP_PLAYBACK EVENT_MASK(4u)
+#define AUDIO_EVENT_STOP_PLAYBACK EVENT_MASK(2u)
 
 /**
  * @brief Set mute states.
  */
-#define AUDIO_EVENT_SET_MUTE_STATE EVENT_MASK(5u)
+#define AUDIO_EVENT_SET_MUTE_STATE EVENT_MASK(3u)
 
 /**
  * @brief Set volume levels.
  */
-#define AUDIO_EVENT_SET_VOLUME EVENT_MASK(6u)
+#define AUDIO_EVENT_SET_VOLUME EVENT_MASK(4u)
 
 /**
  * @brief Reset volume setting.
  */
-#define AUDIO_EVENT_RESET_VOLUME EVENT_MASK(7u)
+#define AUDIO_EVENT_RESET_VOLUME EVENT_MASK(5u)
 
 /**
  * @brief The number of audio channels - two for stereo.
@@ -83,6 +73,11 @@
  * @brief The number of bits in a byte.
  */
 #define AUDIO_BIT_PER_BYTE 8u
+
+/**
+ * @brief A mask for a full byte.
+ */
+#define AUDIO_BYTE_MASK 0xFFu
 
 /**
  * @brief The size of each sample in bytes.
@@ -230,7 +225,7 @@ struct audio_playback {
                                       ///< memory locations, in bytes.
     bool b_streaming_enabled;         ///< True, if audio streaming is enabled, and
                                       ///< data is being received via USB.
-    bool b_output_enabled;            ///< True, if the audio output is enabled, and data
+    bool b_playback_enabled;          ///< True, if the audio output is enabled, and data
                                       ///< is being output via I2S.
 };
 
@@ -264,7 +259,7 @@ struct audio_context {
 };
 
 event_source_t *audio_get_event_source(void);
-bool            audio_is_streaming(void);
+bool            audio_playback_is_enabled(void);
 uint16_t        audio_get_fill_level(void);
 int16_t         audio_channel_get_volume(enum audio_channel audio_channel);
 bool            audio_channel_is_muted(enum audio_channel audio_channel);

@@ -76,12 +76,12 @@ inline int16_t audio_channel_get_volume(enum audio_channel audio_channel) {
 }
 
 /**
- * @brief Check if audio streaming via USB is enabled.
+ * @brief Check if audio playback via I2S is enabled.
  *
- * @return true if streaming is enabled.
- * @return false if streaming is disabled.
+ * @return true if audio playback is enabled.
+ * @return false if audio playback is disabled.
  */
-inline bool audio_is_streaming(void) { return g_audio_context.playback.b_streaming_enabled; }
+inline bool audio_playback_is_enabled(void) { return g_audio_context.playback.b_playback_enabled; }
 
 /**
  * @brief Initialize the audio diagnostics structure.
@@ -115,7 +115,7 @@ static void audio_init_playback(volatile struct audio_playback *p_playback) {
     p_playback->buffer_write_offset     = 0u;
     p_playback->buffer_read_offset      = 0u;
     p_playback->buffer_fill_level_bytes = 0u;
-    p_playback->b_output_enabled        = false;
+    p_playback->b_playback_enabled      = false;
     p_playback->b_streaming_enabled     = false;
 }
 
@@ -320,6 +320,7 @@ void audio_feedback_cb(USBDriver *usbp, usbep_t ep) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     if (!p_playback->b_streaming_enabled) {
+        // Feedback is only active while streaming.
         return;
     }
 
@@ -420,31 +421,35 @@ static inline void audio_update_fill_level(void) {
 static inline void audio_start_playback(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
-    if (p_playback->b_output_enabled) {
-        // Do nothing, when playback is already enabled.
+    if (p_playback->b_playback_enabled) {
+        // Playback already enabled.
         return;
     }
 
     if (p_playback->buffer_fill_level_bytes >= AUDIO_BUFFER_TARGET_FILL_LEVEL_BYTES) {
         // Signal that the playback buffer is at or above the target fill level. This starts audio playback via I2S.
-        p_playback->b_output_enabled = true;
+        p_playback->b_playback_enabled = true;
         chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_START_PLAYBACK);
     }
 }
 
 /**
- * @brief Disables playback, if an empty packet was received.
+ * @brief Disables audio playback.
  * @details Emits an \a AUDIO_EVENT_STOP_PLAYBACK event.
  * @note This internally uses I-class functions.
  */
 static inline void audio_stop_playback(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
-    if (p_playback->b_output_enabled) {
-        p_playback->b_output_enabled    = false;
-        p_playback->buffer_write_offset = 0;
-        chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_STOP_PLAYBACK);
+    if (!p_playback->b_playback_enabled) {
+        // Playback already disabled.
+        return;
     }
+
+    p_playback->b_playback_enabled  = false;
+    p_playback->buffer_write_offset = 0;
+
+    chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_STOP_PLAYBACK);
 }
 
 /**
@@ -639,49 +644,53 @@ static bool audio_handle_function_unit_request(USBDriver *usbp, uint8_t req, uin
  * @return false if a request could not be answered successfully.
  */
 bool audio_control_cb(USBDriver *usbp, uint8_t iface, uint8_t entity, uint8_t req, uint16_t wValue, uint16_t length) {
-    // Only requests to audio control iface are supported.
-    if (iface == AUDIO_CONTROL_INTERFACE) {
-        /* Feature unit */
-        if (entity == AUDIO_FUNCTION_UNIT_ID) {
-            return audio_handle_function_unit_request(usbp, req, (wValue >> 8) & 0xFF, wValue & 0xFF, length);
-        }
+    if (iface != AUDIO_CONTROL_INTERFACE) {
+        // Only requests to audio control iface are supported.
+        return false;
     }
+
+    if (entity == AUDIO_FUNCTION_UNIT_ID) {
+        // Handle requests to the audio function unit
+        return audio_handle_function_unit_request(usbp, req, (wValue >> AUDIO_BIT_PER_BYTE) & AUDIO_BYTE_MASK,
+                                                  wValue & AUDIO_BYTE_MASK, length);
+    }
+
+    // No control message handling took place.
     return false;
 }
 
 /**
  * @brief Start streaming audio via USB.
  * @details Is called, when the audio endpoint goes into its operational alternate mode (actual music playback begins).
- * It broadcasts the \a AUDIO_EVENT_START_STREAMING event.
  *
  * @param usbp The pointer to the USB driver structure.
  */
 static void audio_start_streaming(USBDriver *usbp) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
-    if (!p_playback->b_streaming_enabled) {
-        audio_init_playback(p_playback);
-        p_playback->b_streaming_enabled = true;
-
-        // Distribute event, and prepare USB audio data reception, and feedback endpoint transmission.
-        chSysLockFromISR();
-        chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_START_STREAMING);
-
-        // Feedback yet unknown, transmit empty packet.
-        usbStartTransmitI(usbp, AUDIO_FEEDBACK_ENDPOINT, NULL, 0);
-
-        // Initial audio data reception.
-        usbStartReceiveI(usbp, AUDIO_PLAYBACK_ENDPOINT, (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset],
-                         AUDIO_MAX_PACKET_SIZE);
-
-        chSysUnlockFromISR();
+    if (p_playback->b_streaming_enabled) {
+        // Streaming is already enabled.
+        return;
     }
+
+    audio_init_playback(p_playback);
+    p_playback->b_streaming_enabled = true;
+
+    chSysLockFromISR();
+
+    // Feedback yet unknown, transmit empty packet.
+    usbStartTransmitI(usbp, AUDIO_FEEDBACK_ENDPOINT, NULL, 0);
+
+    // Initial audio data reception.
+    usbStartReceiveI(usbp, AUDIO_PLAYBACK_ENDPOINT, (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset],
+                     AUDIO_MAX_PACKET_SIZE);
+
+    chSysUnlockFromISR();
 }
 
 /**
  * @brief Disable audio streaming and output.
- * @details Is called on USB reset, or when the audio endpoint goes into its zero bandwidth alternate mode. It
- * broadcasts the \a AUDIO_EVENT_STOP_STREAMING event.
+ * @details Is called on USB reset, or when the audio endpoint goes into its zero bandwidth alternate mode.
  *
  * @param usbp The pointer to the USB driver structure.
  */
@@ -689,15 +698,16 @@ void audio_stop_streaming(USBDriver *usbp) {
     (void)usbp;
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
-    if (p_playback->b_streaming_enabled) {
-        p_playback->b_output_enabled    = false;
-        p_playback->b_streaming_enabled = false;
-
-        // Distribute events.
-        chSysLockFromISR();
-        chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_STOP_STREAMING);
-        chSysUnlockFromISR();
+    if (!p_playback->b_streaming_enabled) {
+        // Streaming is already disabled.
+        return;
     }
+
+    p_playback->b_streaming_enabled = false;
+
+    chSysLockFromISR();
+    audio_stop_playback();
+    chSysUnlockFromISR();
 }
 
 /**
@@ -749,8 +759,7 @@ static THD_FUNCTION(audio_thread, arg) {
     // Registers this thread for audio events.
     static event_listener_t audio_event_listener;
     chEvtRegisterMaskWithFlags(&g_audio_event_source, &audio_event_listener, AUDIO_EVENT,
-                               AUDIO_EVENT_START_STREAMING | AUDIO_EVENT_STOP_STREAMING | AUDIO_EVENT_START_PLAYBACK |
-                                   AUDIO_EVENT_STOP_PLAYBACK);
+                               AUDIO_EVENT_START_PLAYBACK | AUDIO_EVENT_STOP_PLAYBACK);
 
     // Enable the feedback counter timer TIM2 peripheral clock (no low-power mode).
     rccEnableTIM2(false);
@@ -762,28 +771,22 @@ static THD_FUNCTION(audio_thread, arg) {
         // Generally, the SOF capture (for feedback calculation) must be started after/stopped before the I2S peripheral
         // - the I2S master clock output is required for counting the SOF interval.
 
-        if (event_flags & AUDIO_EVENT_START_STREAMING) {
-            i2sStart(&I2S_DRIVER, &g_i2s_config);
-
+        if (event_flags & AUDIO_EVENT_START_PLAYBACK) {
             // Set volumes to the values configured via USB audio.
             chEvtBroadcastFlags(&g_audio_event_source, AUDIO_EVENT_SET_VOLUME);
-        }
 
-        if (event_flags & AUDIO_EVENT_START_PLAYBACK) {
+            i2sStart(&I2S_DRIVER, &g_i2s_config);
             i2sStartExchange(&I2S_DRIVER);
             audio_start_sof_capture();
         }
 
-        if ((event_flags & AUDIO_EVENT_STOP_PLAYBACK) || (event_flags & AUDIO_EVENT_STOP_STREAMING)) {
+        if (event_flags & AUDIO_EVENT_STOP_PLAYBACK) {
             audio_stop_sof_capture();
             i2sStopExchange(&I2S_DRIVER);
+            i2sStop(&I2S_DRIVER);
 
-            if (event_flags & AUDIO_EVENT_STOP_STREAMING) {
-                i2sStop(&I2S_DRIVER);
-
-                // Reset volumes to default.
-                chEvtBroadcastFlags(&g_audio_event_source, AUDIO_EVENT_RESET_VOLUME);
-            }
+            // Reset volumes to default.
+            chEvtBroadcastFlags(&g_audio_event_source, AUDIO_EVENT_RESET_VOLUME);
         }
     }
 }
