@@ -209,7 +209,6 @@ struct audio_feedback {
     size_t                               sof_package_count;  ///< Counts the SOF packages since the last
                                                              ///< feedback value update.
     uint32_t value;                                          ///< The current feedback value.
-    uint8_t  buffer[AUDIO_FEEDBACK_BUFFER_SIZE];  ///< The current feedback buffer, derived from the feedback value.
     uint32_t last_counter_value;                  ///< The counter value at the time of the
                                                   ///< previous SOF interrupt.
 };

@@ -261,9 +261,6 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
         // must be compensated manually.
         audio_feedback_correct();
 
-        // Translate the feedback value to a buffer of three bytes.
-        value_to_byte_array((uint8_t *)p_feedback->buffer, p_feedback->value, AUDIO_FEEDBACK_BUFFER_SIZE);
-
         p_feedback->sof_package_count = 0u;
         p_feedback->b_is_valid        = true;
     }
@@ -327,9 +324,8 @@ void audio_feedback_cb(USBDriver *usbp, usbep_t ep) {
     chSysLockFromISR();
 
     if (p_feedback->b_is_valid) {
-        // Local copy that cannot be overwritten by an ISR.
         static uint8_t feedback_buffer[AUDIO_FEEDBACK_BUFFER_SIZE];
-        memcpy(feedback_buffer, (uint8_t *)p_feedback->buffer, AUDIO_FEEDBACK_BUFFER_SIZE);
+        value_to_byte_array(feedback_buffer, p_feedback->value, AUDIO_FEEDBACK_BUFFER_SIZE);
 
         usbStartTransmitI(usbp, ep, feedback_buffer, AUDIO_FEEDBACK_BUFFER_SIZE);
     } else {
