@@ -24,6 +24,21 @@
 #include "usb.h"
 
 /**
+ * @brief The number of messages that can be held.
+ */
+#define MESSAGE_BUFFER_LENGTH 10u
+
+/**
+ * @brief The main thread mailbox. Used for communicating with the audio module.
+ */
+mailbox_t g_mailbox;
+
+/**
+ * @brief The mailbox buffer.
+ */
+msg_t g_mailbox_buffer[MESSAGE_BUFFER_LENGTH];
+
+/**
  * @brief The volume potentiometer ADC sample (12 bit long).
  */
 adcsample_t g_adc_sample;
@@ -107,10 +122,11 @@ int main(void) {
     halInit();
     chSysInit();
 
-    event_source_t *p_audio_event_source = audio_get_event_source();
+    // Initialize the main thread mailbox that receives audio messages (volume, mute).
+    chMBObjectInit(&g_mailbox, g_mailbox_buffer, ARRAY_LENGTH(g_mailbox_buffer));
 
-    // Initialize audio module.
-    audio_setup();
+    // Initialize audio module, giving it access to the main thread's mailbox.
+    audio_setup(&g_mailbox);
 
     // Initialize the USB module.
     usb_setup();
@@ -122,11 +138,6 @@ int main(void) {
     // Begin reading volume potentiometer ADC.
     start_volume_adc();
 
-    // Registers this thread for audio events.
-    static event_listener_t audio_event_listener;
-    chEvtRegisterMaskWithFlags(p_audio_event_source, &audio_event_listener, AUDIO_EVENT,
-                               AUDIO_EVENT_RESET_VOLUME | AUDIO_EVENT_SET_MUTE_STATE | AUDIO_EVENT_SET_VOLUME);
-
 #if ENABLE_REPORTING == TRUE
     // Create reporting thread.
     chThdCreateStatic(wa_reporting_thread, sizeof(wa_reporting_thread), NORMALPRIO, reporting_thread, NULL);
@@ -134,33 +145,43 @@ int main(void) {
 
     // Wait for an audio event.
     while (true) {
-        chEvtWaitOne(AUDIO_EVENT);
-        eventflags_t event_flags = chEvtGetAndClearFlags(&audio_event_listener);
+        msg_t message;
+        msg_t status = chMBFetchTimeout(&g_mailbox, &message, TIME_INFINITE);
 
-        if (event_flags & AUDIO_EVENT_RESET_VOLUME) {
-            // Introduce a short delay before resetting volume. This ensures the end of audio playback and avoids
-            // any audible pops. Otherwise, the volume might be reset while samples are still being played back.
-            chThdSleepMilliseconds(10);
-
-            // Restore volume levels to maximum when instructed (after streaming ends).
-            tas2780_set_volume_all(TAS2780_VOLUME_MAX, TAS2780_CHANNEL_BOTH);
+        if (status != MSG_OK) {
+            chSysHalt("Failed to receive message.");
         }
 
-        // Joint handling of volume and mute controls. Only adjust volume, when streaming over USB. Other audio sources
-        // must not be affected by USB volume adjustments.
-        if (((event_flags & AUDIO_EVENT_SET_MUTE_STATE) || (event_flags & AUDIO_EVENT_SET_VOLUME)) &&
-            audio_playback_is_enabled()) {
-            if (audio_channel_is_muted(AUDIO_CHANNEL_LEFT)) {
-                tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_LEFT);
-            } else {
-                tas2780_set_volume_all(audio_channel_get_volume(AUDIO_CHANNEL_LEFT), TAS2780_CHANNEL_LEFT);
-            }
+        switch (message) {
+            case AUDIO_MSG_RESET_VOLUME:
+                // Introduce a short delay before resetting volume. This ensures the end of audio playback and avoids
+                // any audible pops. Otherwise, the volume might be reset while samples are still being played back.
+                chThdSleepMilliseconds(10);
 
-            if (audio_channel_is_muted(AUDIO_CHANNEL_RIGHT)) {
-                tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_RIGHT);
-            } else {
-                tas2780_set_volume_all(audio_channel_get_volume(AUDIO_CHANNEL_RIGHT), TAS2780_CHANNEL_RIGHT);
-            }
+                // Restore volume levels to maximum when instructed (after streaming ends).
+                tas2780_set_volume_all(TAS2780_VOLUME_MAX, TAS2780_CHANNEL_BOTH);
+                break;
+
+            case AUDIO_MSG_SET_MUTE_STATE:
+            case AUDIO_MSG_SET_VOLUME:
+                // Joint handling of volume and mute controls. Only adjust volume, when streaming over USB. Other audio
+                // sources must not be affected by USB volume adjustments.
+                if (audio_channel_is_muted(AUDIO_CHANNEL_LEFT)) {
+                    tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_LEFT);
+                } else {
+                    tas2780_set_volume_all(audio_channel_get_volume(AUDIO_CHANNEL_LEFT), TAS2780_CHANNEL_LEFT);
+                }
+
+                if (audio_channel_is_muted(AUDIO_CHANNEL_RIGHT)) {
+                    tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_RIGHT);
+                } else {
+                    tas2780_set_volume_all(audio_channel_get_volume(AUDIO_CHANNEL_RIGHT), TAS2780_CHANNEL_RIGHT);
+                }
+                break;
+
+            default:
+                chSysHalt("Unknown message type.");
+                break;
         }
     }
 }

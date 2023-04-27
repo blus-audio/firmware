@@ -16,9 +16,19 @@
 #include "common.h"
 
 /**
- * @brief The event source for all audio-related events.
+ * @brief The number of audio messages that can be held.
  */
-static event_source_t g_audio_event_source;
+#define AUDIO_MESSAGE_BUFFER_LENGTH 10u
+
+/**
+ * @brief Audio mailbox for communication between ISRs and the audio thread.
+ */
+static mailbox_t g_audio_mailbox;
+
+/**
+ * @brief The mailbox buffer.
+ */
+static msg_t g_audio_mailbox_buffer[AUDIO_MESSAGE_BUFFER_LENGTH];
 
 /**
  * @brief The global audio context.
@@ -41,18 +51,11 @@ static const I2SConfig g_i2s_config = {.tx_buffer = (const uint8_t *)g_audio_con
                                        .i2spr = SPI_I2SPR_MCKOE | (SPI_I2SPR_I2SDIV & 6)};
 
 /**
- * @brief Get the global audio event source pointer.
- *
- * @return event_source_t* The pointer to the event source.
- */
-inline event_source_t *audio_get_event_source(void) { return &g_audio_event_source; }
-
-/**
  * @brief Get the audio buffer fill level.
  *
  * @return uint16_t The fill level.
  */
-inline uint16_t audio_get_fill_level(void) { return g_audio_context.playback.buffer_fill_level_bytes; }
+uint16_t audio_get_fill_level(void) { return g_audio_context.playback.buffer_fill_level_bytes; }
 
 /**
  * @brief Check the mute state of an audio channel.
@@ -61,7 +64,7 @@ inline uint16_t audio_get_fill_level(void) { return g_audio_context.playback.buf
  * @return true if the channel is muted.
  * @return false if the channel is not muted.
  */
-inline bool audio_channel_is_muted(enum audio_channel audio_channel) {
+bool audio_channel_is_muted(enum audio_channel audio_channel) {
     return g_audio_context.control.b_channel_mute_states[audio_channel];
 }
 
@@ -71,7 +74,7 @@ inline bool audio_channel_is_muted(enum audio_channel audio_channel) {
  * @param audio_channel The audio channel, for which to get the volume.
  * @return int16_t The volume level in 8.8 fractional dB.
  */
-inline int16_t audio_channel_get_volume(enum audio_channel audio_channel) {
+int16_t audio_channel_get_volume(enum audio_channel audio_channel) {
     return g_audio_context.control.channel_volume_levels_8q8_db[audio_channel];
 }
 
@@ -81,7 +84,16 @@ inline int16_t audio_channel_get_volume(enum audio_channel audio_channel) {
  * @return true if audio playback is enabled.
  * @return false if audio playback is disabled.
  */
-inline bool audio_playback_is_enabled(void) { return g_audio_context.playback.b_playback_enabled; }
+static bool audio_playback_is_enabled(void) { return g_audio_context.playback.b_playback_enabled; }
+
+/**
+ * @brief Determine, whether a mailbox is known to the audio module.
+ * @details If the mailbox pointer is NULL, no communication must be attempted.
+ *
+ * @return true if a valid mailbox is known.
+ * @return false if no valid mailbox is known.
+ */
+static bool audio_mailbox_is_set(void) { return g_audio_context.p_mailbox != NULL; }
 
 /**
  * @brief Initialize the audio diagnostics structure.
@@ -138,9 +150,10 @@ static void audio_init_control(volatile struct audio_control *p_control) {
  * @brief Initialize an audio context, and all its contained structures.
  *
  * @param p_context The pointer to the context to initialize.
+ * @param p_mailbox The pointer to the mailbox, where audio messages are posted.
  */
-static void audio_init_context(volatile struct audio_context *p_context) {
-    chEvtObjectInit(&g_audio_event_source);
+static void audio_init_context(volatile struct audio_context *p_context, mailbox_t *p_mailbox) {
+    p_context->p_mailbox = p_mailbox;
     audio_init_feedback(&p_context->feedback);
     audio_init_playback(&p_context->playback);
     audio_init_control(&p_context->control);
@@ -272,7 +285,7 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
  * @brief Set up the timer peripheral for counting USB start of frame (SOF) periods.
  * @note Only start after the I2S peripheral is running. Its MCLK output clocks this timer.
  */
-static inline void audio_start_sof_capture(void) {
+static void audio_start_sof_capture(void) {
     chSysLock();
     chDbgAssert(I2S_DRIVER.state == I2S_ACTIVE, "Only start SOF capture after the I2S driver.");
 
@@ -298,7 +311,7 @@ static inline void audio_start_sof_capture(void) {
 /**
  * @brief Stop the timer peripheral for counting USB start of frame (SOF) periods.
  */
-static inline void audio_stop_sof_capture(void) {
+static void audio_stop_sof_capture(void) {
     chSysLock();
     nvicDisableVector(STM32_TIM2_NUMBER);
     TIM2->CR1 = 0;
@@ -342,7 +355,7 @@ void audio_feedback_cb(USBDriver *usbp, usbep_t ep) {
  * buffer. The audio buffer is large enough to handle excess data of size \a AUDIO_MAX_PACKET_SIZE.
  * @param transaction_size The received audio byte count.
  */
-static inline void audio_update_write_offset(size_t transaction_size) {
+static void audio_update_write_offset(size_t transaction_size) {
     volatile struct audio_playback *p_playback              = &g_audio_context.playback;
     size_t                          new_buffer_write_offset = p_playback->buffer_write_offset + transaction_size;
 
@@ -377,7 +390,7 @@ static inline void audio_update_write_offset(size_t transaction_size) {
  * @brief Determine the I2S DMA's current read offset from the audio buffer start.
  * @details The information is stored in the \a audio_playback structure.
  */
-static inline void audio_update_read_offset(void) {
+static void audio_update_read_offset(void) {
     volatile struct audio_playback *p_playback              = &g_audio_context.playback;
     size_t                          number_of_data_register = (size_t)(I2S_DRIVER.dmatx->stream->NDTR);
 
@@ -402,7 +415,7 @@ static inline void audio_update_read_offset(void) {
  * @details This is the difference in bytes between the write offset (USB) and read offset (I2S DMA) - the number of
  * bytes that can still be written via I2S, before the buffer runs out.
  */
-static inline void audio_update_fill_level(void) {
+static void audio_update_fill_level(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     // Calculate the distance between the DMA read offset, and the USB driver's write offset in the playback buffer.
@@ -412,12 +425,12 @@ static inline void audio_update_fill_level(void) {
 
 /**
  * @brief Start playback, when the target audio buffer fill level is reached.
- * @details I2S transfers are started by emitting the \a AUDIO_EVENT_START_PLAYBACK event.
+ * @details I2S transfers are started by sending a \a AUDIO_MSG_START_PLAYBACK message.
  */
-static inline void audio_start_playback(void) {
+static void audio_start_playback(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
-    if (p_playback->b_playback_enabled) {
+    if (audio_playback_is_enabled()) {
         // Playback already enabled.
         return;
     }
@@ -425,19 +438,20 @@ static inline void audio_start_playback(void) {
     if (p_playback->buffer_fill_level_bytes >= AUDIO_BUFFER_TARGET_FILL_LEVEL_BYTES) {
         // Signal that the playback buffer is at or above the target fill level. This starts audio playback via I2S.
         p_playback->b_playback_enabled = true;
-        chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_START_PLAYBACK);
+
+        chMBPostI(&g_audio_mailbox, AUDIO_MSG_START_PLAYBACK);
     }
 }
 
 /**
  * @brief Disables audio playback.
- * @details Emits an \a AUDIO_EVENT_STOP_PLAYBACK event.
+ * @details Sends a \a AUDIO_MSG_STOP_PLAYBACK message.
  * @note This internally uses I-class functions.
  */
-static inline void audio_stop_playback(void) {
+static void audio_stop_playback(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
-    if (!p_playback->b_playback_enabled) {
+    if (!audio_playback_is_enabled()) {
         // Playback already disabled.
         return;
     }
@@ -445,7 +459,7 @@ static inline void audio_stop_playback(void) {
     p_playback->b_playback_enabled  = false;
     p_playback->buffer_write_offset = 0;
 
-    chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_STOP_PLAYBACK);
+    chMBPostI(&g_audio_mailbox, AUDIO_MSG_STOP_PLAYBACK);
 }
 
 /**
@@ -504,7 +518,10 @@ static void audio_update_volumes(USBDriver *usbp) {
         memcpy((int16_t *)&p_control->channel_volume_levels_8q8_db[audio_channel_index], (int16_t *)p_control->buffer,
                sizeof(int16_t));
     }
-    chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_SET_VOLUME);
+
+    if (audio_playback_is_enabled() && audio_mailbox_is_set()) {
+        chMBPostI(g_audio_context.p_mailbox, AUDIO_MSG_SET_VOLUME);
+    }
     chSysUnlockFromISR();
 }
 
@@ -517,6 +534,7 @@ static void audio_update_mute_states(USBDriver *usbp) {
     (void)usbp;
     volatile struct audio_control *p_control = &g_audio_context.control;
 
+    chSysLockFromISR();
     if (p_control->channel == AUDIO_MASTER_CHANNEL) {
         p_control->b_channel_mute_states[AUDIO_CHANNEL_LEFT]  = p_control->buffer[1u];
         p_control->b_channel_mute_states[AUDIO_CHANNEL_RIGHT] = p_control->buffer[2u];
@@ -527,8 +545,10 @@ static void audio_update_mute_states(USBDriver *usbp) {
 
         p_control->b_channel_mute_states[audio_channel_index] = p_control->buffer[0u];
     }
-    chSysLockFromISR();
-    chEvtBroadcastFlagsI(&g_audio_event_source, AUDIO_EVENT_SET_MUTE_STATE);
+
+    if (audio_playback_is_enabled() && audio_mailbox_is_set()) {
+        chMBPostI(g_audio_context.p_mailbox, AUDIO_MSG_SET_MUTE_STATE);
+    }
     chSysUnlockFromISR();
 }
 
@@ -548,6 +568,10 @@ static bool audio_handle_function_unit_request(USBDriver *usbp, uint8_t req, uin
     volatile struct audio_control *p_control = &g_audio_context.control;
     uint8_t                       *p_buffer  = (uint8_t *)p_control->buffer;
 
+    // In UAC 1.0, the volume level is given as an int16 value. An increment of 1 bit equals 1/256 dB of volume.
+    // Do not change, this is defined by the standard.
+    const int16_t AUDIO_VOLUME_STEPS_PER_DB = 256;
+
     switch (req) {
         case UAC_REQ_SET_MAX:
         case UAC_REQ_SET_MIN:
@@ -560,7 +584,8 @@ static bool audio_handle_function_unit_request(USBDriver *usbp, uint8_t req, uin
 
         case UAC_REQ_GET_MAX:
             if (ctrl == UAC_FU_VOLUME_CONTROL) {
-                for (size_t i = 0; i < length; i++) ((int16_t *)p_buffer)[i] = 0;
+                for (size_t i = 0; i < length; i++)
+                    ((int16_t *)p_buffer)[i] = (int16_t)AUDIO_MAX_VOLUME_DB * AUDIO_VOLUME_STEPS_PER_DB;
                 usbSetupTransfer(usbp, p_buffer, length, NULL);
                 return true;
             }
@@ -568,7 +593,8 @@ static bool audio_handle_function_unit_request(USBDriver *usbp, uint8_t req, uin
 
         case UAC_REQ_GET_MIN:
             if (ctrl == UAC_FU_VOLUME_CONTROL) {
-                for (size_t i = 0; i < length; i++) ((int16_t *)p_buffer)[i] = -100 * 256;
+                for (size_t i = 0; i < length; i++)
+                    ((int16_t *)p_buffer)[i] = (int16_t)AUDIO_MIN_VOLUME_DB * AUDIO_VOLUME_STEPS_PER_DB;
                 usbSetupTransfer(usbp, p_buffer, length, NULL);
                 return true;
             }
@@ -576,7 +602,7 @@ static bool audio_handle_function_unit_request(USBDriver *usbp, uint8_t req, uin
 
         case UAC_REQ_GET_RES:
             if (ctrl == UAC_FU_VOLUME_CONTROL) {
-                for (size_t i = 0; i < length; i++) ((int16_t *)p_buffer)[i] = 128;
+                for (size_t i = 0; i < length; i++) ((int16_t *)p_buffer)[i] = (int16_t)AUDIO_VOLUME_INCREMENT_STEPS;
                 usbSetupTransfer(usbp, p_buffer, length, NULL);
                 return true;
             }
@@ -752,46 +778,56 @@ static THD_FUNCTION(audio_thread, arg) {
     (void)arg;
     chRegSetThreadName("audio");
 
-    // Registers this thread for audio events.
-    static event_listener_t audio_event_listener;
-    chEvtRegisterMaskWithFlags(&g_audio_event_source, &audio_event_listener, AUDIO_EVENT,
-                               AUDIO_EVENT_START_PLAYBACK | AUDIO_EVENT_STOP_PLAYBACK);
-
     // Enable the feedback counter timer TIM2 peripheral clock (no low-power mode).
     rccEnableTIM2(false);
 
     while (true) {
-        chEvtWaitOne(AUDIO_EVENT);
-        eventflags_t event_flags = chEvtGetAndClearFlags(&audio_event_listener);
+        msg_t message;
+        msg_t status = chMBFetchTimeout(&g_audio_mailbox, &message, TIME_INFINITE);
 
-        // Generally, the SOF capture (for feedback calculation) must be started after/stopped before the I2S peripheral
-        // - the I2S master clock output is required for counting the SOF interval.
-
-        if (event_flags & AUDIO_EVENT_START_PLAYBACK) {
-            // Set volumes to the values configured via USB audio.
-            chEvtBroadcastFlags(&g_audio_event_source, AUDIO_EVENT_SET_VOLUME);
-
-            i2sStart(&I2S_DRIVER, &g_i2s_config);
-            i2sStartExchange(&I2S_DRIVER);
-            audio_start_sof_capture();
+        if (status != MSG_OK) {
+            chSysHalt("Failed to receive message.");
         }
 
-        if (event_flags & AUDIO_EVENT_STOP_PLAYBACK) {
-            audio_stop_sof_capture();
-            i2sStopExchange(&I2S_DRIVER);
-            i2sStop(&I2S_DRIVER);
+        switch (message) {
+            case AUDIO_MSG_START_PLAYBACK:
+                // Set volumes to the values configured via USB audio.
+                if (audio_mailbox_is_set()) {
+                    chMBPostTimeout(g_audio_context.p_mailbox, AUDIO_MSG_SET_VOLUME, TIME_INFINITE);
+                }
 
-            // Reset volumes to default.
-            chEvtBroadcastFlags(&g_audio_event_source, AUDIO_EVENT_RESET_VOLUME);
+                i2sStart(&I2S_DRIVER, &g_i2s_config);
+                i2sStartExchange(&I2S_DRIVER);
+                audio_start_sof_capture();
+                break;
+
+            case AUDIO_MSG_STOP_PLAYBACK:
+                audio_stop_sof_capture();
+                i2sStopExchange(&I2S_DRIVER);
+                i2sStop(&I2S_DRIVER);
+
+                // Reset volumes to default.
+                if (audio_mailbox_is_set()) {
+                    chMBPostTimeout(g_audio_context.p_mailbox, AUDIO_MSG_RESET_VOLUME, TIME_INFINITE);
+                }
+                break;
+
+            default:
+                chSysHalt("Unknown message type.");
+                break;
         }
     }
 }
 
 /**
  * @brief Set up all components of the audio module.
+ *
+ * @param p_mailbox The pointer to the mailbox, where audio messages are posted. Used for volume information.
  */
-void audio_setup(void) {
-    audio_init_context(&g_audio_context);
+void audio_setup(mailbox_t *p_mailbox) {
+    audio_init_context(&g_audio_context, p_mailbox);
+
+    chMBObjectInit(&g_audio_mailbox, g_audio_mailbox_buffer, ARRAY_LENGTH(g_audio_mailbox_buffer));
     chThdCreateStatic(wa_audio_thread, sizeof(wa_audio_thread), NORMALPRIO, audio_thread, NULL);
 }
 

@@ -20,6 +20,13 @@
  */
 #define I2S_DRIVER (I2SD3)
 
+// Audio messages.
+#define AUDIO_MSG_START_PLAYBACK 0u
+#define AUDIO_MSG_STOP_PLAYBACK  1u
+#define AUDIO_MSG_SET_MUTE_STATE 2u
+#define AUDIO_MSG_SET_VOLUME     3u
+#define AUDIO_MSG_RESET_VOLUME   4u
+
 // Supported control requests from the USB Audio Class.
 #define UAC_REQ_SET_CUR 0x01u
 #define UAC_REQ_SET_MIN 0x02u
@@ -34,53 +41,18 @@
 #define UAC_FU_MUTE_CONTROL   0x01u
 #define UAC_FU_VOLUME_CONTROL 0x02u
 
-/**
- * @brief Audio related events.
- */
-#define AUDIO_EVENT EVENT_MASK(0u)
+// General audio settings.
+#define AUDIO_MAX_VOLUME_DB          0
+#define AUDIO_MIN_VOLUME_DB          -100
+#define AUDIO_VOLUME_INCREMENT_STEPS 128  // 0.5 dB, since 256 steps are one full dB.
+#define AUDIO_CHANNEL_COUNT          2u
 
-/**
- * @brief Start I2S audio playback.
- */
-#define AUDIO_EVENT_START_PLAYBACK EVENT_MASK(1u)
-
-/**
- * @brief Stop I2S audio playback.
- */
-#define AUDIO_EVENT_STOP_PLAYBACK EVENT_MASK(2u)
-
-/**
- * @brief Set mute states.
- */
-#define AUDIO_EVENT_SET_MUTE_STATE EVENT_MASK(3u)
-
-/**
- * @brief Set volume levels.
- */
-#define AUDIO_EVENT_SET_VOLUME EVENT_MASK(4u)
-
-/**
- * @brief Reset volume setting.
- */
-#define AUDIO_EVENT_RESET_VOLUME EVENT_MASK(5u)
-
-/**
- * @brief The number of audio channels - two for stereo.
- */
-#define AUDIO_CHANNEL_COUNT 2u
-
-/**
- * @brief The number of bits in a byte.
- */
+// Definitions that are regularly reused.
 #define AUDIO_BIT_PER_BYTE 8u
+#define AUDIO_BYTE_MASK    0xFFu
 
 /**
- * @brief A mask for a full byte.
- */
-#define AUDIO_BYTE_MASK 0xFFu
-
-/**
- * @brief The size of each sample in bytes.
+ * @brief The size of each audio sample in bytes.
  */
 #define AUDIO_SAMPLE_SIZE (AUDIO_RESOLUTION_BIT / AUDIO_BIT_PER_BYTE)
 
@@ -209,8 +181,8 @@ struct audio_feedback {
     size_t                               sof_package_count;  ///< Counts the SOF packages since the last
                                                              ///< feedback value update.
     uint32_t value;                                          ///< The current feedback value.
-    uint32_t last_counter_value;                  ///< The counter value at the time of the
-                                                  ///< previous SOF interrupt.
+    uint32_t last_counter_value;                             ///< The counter value at the time of the
+                                                             ///< previous SOF interrupt.
 };
 
 /**
@@ -251,23 +223,22 @@ struct audio_diagnostics {
  * @details Holds all important audio-related structures.
  */
 struct audio_context {
+    mailbox_t *p_mailbox;  ///< The pointer to a mailbox that receives messages from the audio thread. Can be NULL.
     struct audio_feedback    feedback;     ///< The audio feedback structure.
     struct audio_playback    playback;     ///< The audio playback structure.
     struct audio_control     control;      ///< The audio control structure.
     struct audio_diagnostics diagnostics;  ///< The audio diagnostics structure.
 };
 
-event_source_t *audio_get_event_source(void);
-bool            audio_playback_is_enabled(void);
-uint16_t        audio_get_fill_level(void);
-int16_t         audio_channel_get_volume(enum audio_channel audio_channel);
-bool            audio_channel_is_muted(enum audio_channel audio_channel);
+uint16_t audio_get_fill_level(void);
+int16_t  audio_channel_get_volume(enum audio_channel audio_channel);
+bool     audio_channel_is_muted(enum audio_channel audio_channel);
 
-void            audio_setup(void);
-void            audio_stop_streaming(USBDriver *usbp);
-bool            audio_requests_hook_cb(USBDriver *usbp);
-void            audio_received_cb(USBDriver *usbp, usbep_t ep);
-void            audio_feedback_cb(USBDriver *usbp, usbep_t ep);
+void     audio_setup(mailbox_t *p_mailbox);
+void     audio_stop_streaming(USBDriver *usbp);
+bool     audio_requests_hook_cb(USBDriver *usbp);
+void     audio_received_cb(USBDriver *usbp, usbep_t ep);
+void     audio_feedback_cb(USBDriver *usbp, usbep_t ep);
 
 #endif  // SOURCE_AUDIO_AUDIO_H_
 
