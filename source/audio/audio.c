@@ -266,6 +266,7 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
         //   fs / kHz * 2**14 = fs * 256 * 64 ms
         //
         // where the left side is the expected format, and the right side the result of this counting function.
+        // See the general USB 2.0 specification for details (5.12.4.2, p. 75) on the format of the feedback value.
         p_feedback->value = subtract_circular_unsigned(counter_value, p_feedback->last_counter_value, UINT32_MAX);
 
         p_feedback->last_counter_value = counter_value;
@@ -391,11 +392,11 @@ static void audio_update_write_offset(size_t transaction_size) {
  * @details The information is stored in the \a audio_playback structure.
  */
 static void audio_update_read_offset(void) {
-    volatile struct audio_playback *p_playback              = &g_audio_context.playback;
-    size_t                          number_of_data_register = (size_t)(I2S_DRIVER.dmatx->stream->NDTR);
+    volatile struct audio_playback *p_playback = &g_audio_context.playback;
+    size_t                          ndtr_value = (size_t)(I2S_DRIVER.dmatx->stream->NDTR);
 
     // For 16 bit audio, the number of data register (NDTR) holds the number of remaining audio samples.
-    size_t transferrable_sample_count = number_of_data_register;
+    size_t transferrable_sample_count = ndtr_value;
 
 #if AUDIO_RESOLUTION_BIT == 32u
     // For 32 bit audio, the number of data register still counts 16 bit wide samples.
@@ -482,9 +483,10 @@ void audio_received_cb(USBDriver *usbp, usbep_t ep) {
     chSysLockFromISR();
 
     if (transaction_size == 0u) {
+        // Failed transaction.
         audio_stop_playback();
     } else {
-        // Samples have been written by the USB DMA.
+        // Samples were received successfully.
         audio_update_write_offset(transaction_size);
     }
 
@@ -769,6 +771,25 @@ bool audio_requests_hook_cb(USBDriver *usbp) {
     return false;
 }
 
+/**
+ * @brief The volume reset timer callback function.
+ * @details Sends a \a AUDIO_MSG_RESET_VOLUME message to a listening thread, if playback is still disabled after the
+ * timeout period. If playback is no longer disabled, no message is sent.
+ *
+ * @param p_virtual_timer A pointer to the virtual timer object (unused).
+ * @param p_arg A pointer to the callback argument (unused).
+ */
+static void audio_volume_reset_cb(virtual_timer_t *p_virtual_timer, void *p_arg) {
+    (void)p_virtual_timer;
+    (void)p_arg;
+
+    chSysLockFromISR();
+    if (!audio_playback_is_enabled() && audio_mailbox_is_set()) {
+        chMBPostI(g_audio_context.p_mailbox, AUDIO_MSG_RESET_VOLUME);
+    }
+    chSysUnlockFromISR();
+}
+
 static THD_WORKING_AREA(wa_audio_thread, 128);
 
 /**
@@ -781,6 +802,11 @@ static THD_FUNCTION(audio_thread, arg) {
     // Enable the feedback counter timer TIM2 peripheral clock (no low-power mode).
     rccEnableTIM2(false);
 
+    // Initialize a volume reset timer.
+    virtual_timer_t volume_reset_timer;
+    chVTObjectInit(&volume_reset_timer);
+
+    // Wait for a message from an audio ISR.
     while (true) {
         msg_t message;
         msg_t status = chMBFetchTimeout(&g_audio_mailbox, &message, TIME_INFINITE);
@@ -806,10 +832,7 @@ static THD_FUNCTION(audio_thread, arg) {
                 i2sStopExchange(&I2S_DRIVER);
                 i2sStop(&I2S_DRIVER);
 
-                // Reset volumes to default.
-                if (audio_mailbox_is_set()) {
-                    chMBPostTimeout(g_audio_context.p_mailbox, AUDIO_MSG_RESET_VOLUME, TIME_INFINITE);
-                }
+                chVTSet(&volume_reset_timer, AUDIO_RESET_VOLUME_TIMEOUT, audio_volume_reset_cb, NULL);
                 break;
 
             default:

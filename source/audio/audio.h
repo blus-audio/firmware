@@ -52,6 +52,14 @@
 #define AUDIO_BYTE_MASK    0xFFu
 
 /**
+ * @brief The time in ticks after which an \a AUDIO_MSG_RESET_VOLUME message is sent, following the end of playback.
+ * @details When playback ends, the volume is not reset immediately, but only after a certain time has passed. This is
+ * done so that the volume is not reset during short playback pauses, but remains at the configured level.
+ * @note A setting of \a CH_CFG_ST_FREQUENCY leads to a timeout of one second.
+ */
+#define AUDIO_RESET_VOLUME_TIMEOUT CH_CFG_ST_FREQUENCY
+
+/**
  * @brief The size of each audio sample in bytes.
  */
 #define AUDIO_SAMPLE_SIZE (AUDIO_RESOLUTION_BIT / AUDIO_BIT_PER_BYTE)

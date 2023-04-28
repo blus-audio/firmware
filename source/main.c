@@ -148,7 +148,7 @@ int main(void) {
     chThdCreateStatic(wa_reporting_thread, sizeof(wa_reporting_thread), NORMALPRIO, reporting_thread, NULL);
 #endif
 
-    // Wait for an audio event.
+    // Wait for a message from the audio thread.
     while (true) {
         msg_t message;
         msg_t status = chMBFetchTimeout(&g_mailbox, &message, TIME_INFINITE);
