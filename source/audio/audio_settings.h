@@ -27,6 +27,11 @@
  */
 #define AUDIO_BUFFER_PACKET_COUNT 5u
 
+/**
+ * @brief The exponent of the period between feedback packets in 2^N ms.
+ */
+#define AUDIO_FEEDBACK_PERIOD_EXPONENT 0x03u
+
 #endif  // SOURCE_AUDIO_AUDIO_SETTINGS_H_
 
 /**

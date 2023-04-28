@@ -124,6 +124,23 @@
 #define AUDIO_FEEDBACK_CORRECTION_OFFSET (256u)
 
 /**
+ * @brief The minimum supported exponent of the period between feedback packets.
+ */
+#define AUDIO_FEEDBACK_MIN_PERIOD_EXPONENT 0x01u
+
+/**
+ * @brief The maximum supported exponent of the period between feedback packets.
+ */
+#define AUDIO_FEEDBACK_MAX_PERIOD_EXPONENT 0x06u
+
+/**
+ * @brief The audio feedback period duration in ms.
+ */
+#define AUDIO_FEEDBACK_PERIOD_MS (1 << AUDIO_FEEDBACK_PERIOD_EXPONENT)
+
+#define AUDIO_FEEDBACK_SHIFT     (AUDIO_FEEDBACK_MAX_PERIOD_EXPONENT - AUDIO_FEEDBACK_PERIOD_EXPONENT)
+
+/**
  * @brief The size of the packets for the feedback endpoint.
  * @details These are three bytes long, in 10.14 binary format. The format represents a number in kHz, so that a 1 at a
  * bit shift of 14 is 1 kHz.
@@ -145,6 +162,14 @@
 
 #if AUDIO_BUFFER_MIN_FILL_LEVEL_BYTES > AUDIO_BUFFER_MAX_FILL_LEVEL_BYTES
 #error "Inconsistent settings, sample count tolerance likely too large."
+#endif
+
+#if AUDIO_FEEDBACK_PERIOD_EXPONENT < AUDIO_FEEDBACK_MIN_PERIOD_EXPONENT
+#error "Unsupported feedback period exponent - too small."
+#endif
+
+#if AUDIO_FEEDBACK_PERIOD_EXPONENT > AUDIO_FEEDBACK_MAX_PERIOD_EXPONENT
+#error "Unsupported feedback period exponent - too large."
 #endif
 
 // Endpoint numbers.
@@ -240,6 +265,7 @@ struct audio_context {
 
 uint16_t audio_get_fill_level(void);
 int16_t  audio_channel_get_volume(enum audio_channel audio_channel);
+uint32_t audio_get_feedback_value(void);
 bool     audio_channel_is_muted(enum audio_channel audio_channel);
 
 void     audio_setup(mailbox_t *p_mailbox);

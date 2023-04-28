@@ -104,7 +104,8 @@ static THD_FUNCTION(reporting_thread, arg) {
         chprintf(gp_stream, "Volume: %li / %li dB\n", (audio_channel_get_volume(AUDIO_CHANNEL_LEFT) >> 8),
                  (audio_channel_get_volume(AUDIO_CHANNEL_RIGHT) >> 8));
 
-        chprintf(gp_stream, "Audio buffer fill level: %lu / %lu\n", audio_get_fill_level(), AUDIO_BUFFER_SIZE);
+        chprintf(gp_stream, "Audio buffer fill level: %lu / %lu (feedback %lu)\n", audio_get_fill_level(),
+                 AUDIO_BUFFER_SIZE, audio_get_feedback_value());
 
         chThdSleepMilliseconds(1000);
     }
@@ -126,6 +127,7 @@ int main(void) {
     chprintf(gp_stream, "Using %u byte per sample at %lu Hz, %lu byte per frame.\n", AUDIO_SAMPLE_SIZE,
              AUDIO_SAMPLE_RATE_HZ, AUDIO_PACKET_SIZE);
     chprintf(gp_stream, "Audio buffer holds %lu bytes (%lu packets).\n", AUDIO_BUFFER_SIZE, AUDIO_BUFFER_PACKET_COUNT);
+    chprintf(gp_stream, "Audio feedback period is %lu ms.\n", AUDIO_FEEDBACK_PERIOD_MS);
 
     // Initialize the main thread mailbox that receives audio messages (volume, mute).
     chMBObjectInit(&g_mailbox, g_mailbox_buffer, ARRAY_LENGTH(g_mailbox_buffer));

@@ -79,6 +79,13 @@ int16_t audio_channel_get_volume(enum audio_channel audio_channel) {
 }
 
 /**
+ * @brief Get the current feedback value.
+ *
+ * @return uint32_t The currently measured feedback value.
+ */
+uint32_t audio_get_feedback_value(void) { return g_audio_context.feedback.value; }
+
+/**
  * @brief Check if audio playback via I2S is enabled.
  *
  * @return true if audio playback is enabled.
@@ -122,13 +129,14 @@ static void audio_init_feedback(volatile struct audio_feedback *p_feedback) {
  * @brief Initialize the audio playback structure.
  *
  * @param p_playback The pointer to the structure to initialize.
+ * @param b_streaming_enabled If true, USB audio streaming is set to being enabled.
  */
-static void audio_init_playback(volatile struct audio_playback *p_playback) {
+static void audio_init_playback(volatile struct audio_playback *p_playback, bool b_streaming_enabled) {
     p_playback->buffer_write_offset     = 0u;
     p_playback->buffer_read_offset      = 0u;
     p_playback->buffer_fill_level_bytes = 0u;
     p_playback->b_playback_enabled      = false;
-    p_playback->b_streaming_enabled     = false;
+    p_playback->b_streaming_enabled     = b_streaming_enabled;
 }
 
 /**
@@ -155,7 +163,7 @@ static void audio_init_control(volatile struct audio_control *p_control) {
 static void audio_init_context(volatile struct audio_context *p_context, mailbox_t *p_mailbox) {
     p_context->p_mailbox = p_mailbox;
     audio_init_feedback(&p_context->feedback);
-    audio_init_playback(&p_context->playback);
+    audio_init_playback(&p_context->playback, false);
     audio_init_control(&p_context->control);
     audio_init_diagnostics(&p_context->diagnostics);
 }
@@ -243,8 +251,7 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
     }
 
     if (p_feedback->b_is_first_sof) {
-        // On the first SOF signal, the feedback cannot be calculated yet.
-        // Only record the timer state.
+        // On the first SOF signal, the feedback cannot be calculated yet. Only record the timer state.
         p_feedback->last_counter_value = counter_value;
         p_feedback->b_is_first_sof     = false;
         OSAL_IRQ_EPILOGUE();
@@ -253,21 +260,43 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
 
     // Normal playback operation below.
 
-    // Feedback value is calculated every 64 SOF interrupts => every 64 ms.
     p_feedback->sof_package_count++;
-    if (p_feedback->sof_package_count == 64u) {
-        // Conveniently, the timer count difference at 64 ms count periods matches the required feedback format. The
-        // feedback endpoint requires the device sample rate in kHz in a 10.14 binary (fixpoint) format.
-        // - The master clock runs 256 times as fast as the reference clock.
-        // - The conversion of fs / kHz to fs / Hz adds a factor of 1000
-        // - The counting period is 64 ms long.
+    if (p_feedback->sof_package_count == AUDIO_FEEDBACK_PERIOD_MS) {
+        // The feedback value is measured and reported every \a AUDIO_FEEDBACK_PERIOD_MS .
+        // The timer that counts its cycles during that period is clocked by the I2S master clock, which (on this
+        // hardware) runs at 256 times the audio sample rate. Considering an audio sample rate of 48 kHz, this results
+        // in a timer clock of 12.288 MHz.
         //
-        // Thus
-        //   fs / kHz * 2**14 = fs * 256 * 64 ms
+        // Therefore, the timer counts a total amount of N clock cycles
+        //   N = fs * 256 * \a AUDIO_FEEDBACK_PERIOD_MS ,
         //
-        // where the left side is the expected format, and the right side the result of this counting function.
-        // See the general USB 2.0 specification for details (5.12.4.2, p. 75) on the format of the feedback value.
-        p_feedback->value = subtract_circular_unsigned(counter_value, p_feedback->last_counter_value, UINT32_MAX);
+        // and thus the measured sample rate is
+        //   fs = N / 256 / \a AUDIO_FEEDBACK_PERIOD_MS .
+        //
+        // The feedback endpoint shall report the device sample rate in units of kHz in a 10.14 binary (fixpoint)
+        // format. As an example, a sample rate of 48 kHz would be represented as 48 << 14 = 786432. In practice, the
+        // measured sample rate will likely deviate slightly from the nominal value.
+        //
+        // In mathematical terms, the reported number M must be
+        //   M = 2^14 * fs / 1000 .
+        //
+        // Calculating m from n (inserting for fs) yields
+        //   M = 2^14 * n / 256 / \a AUDIO_FEEDBACK_PERIOD_MS / 1000 .
+        //
+        // As a numerical example, consider \a AUDIO_FEEDBACK_PERIOD_MS = 64 ms. In this special case,
+        //   2^14 / 256 / 64e-3 / 1000 = 1.0 ,
+        //
+        // and the timer value can directly be used as the feedback value. If, for example, \a AUDIO_FEEDBACK_PERIOD_MS
+        // was halved to 32 ms, the counter value would have to be doubled, in order to achieve the same feedback value.
+        //
+        // In this function, this is accomplished with a bitshift operation by \a AUDIO_FEEDBACK_SHIFT . The value of
+        // \a AUDIO_FEEDBACK_SHIFT is zero for a feedback period of 64 ms, and increases by one for every halving of the
+        // feedback period. Feedback periods longer than 64 ms are not supported.
+        //
+        // See the general USB 2.0 specification for more details (5.12.4.2, p. 75) on the format and calculation of the
+        // feedback value.
+        p_feedback->value = subtract_circular_unsigned(counter_value, p_feedback->last_counter_value, UINT32_MAX)
+                            << AUDIO_FEEDBACK_SHIFT;
 
         p_feedback->last_counter_value = counter_value;
 
@@ -457,9 +486,7 @@ static void audio_stop_playback(void) {
         return;
     }
 
-    p_playback->b_playback_enabled  = false;
-    p_playback->buffer_write_offset = 0;
-
+    audio_init_playback(p_playback, p_playback->b_streaming_enabled);
     chMBPostI(&g_audio_mailbox, AUDIO_MSG_STOP_PLAYBACK);
 }
 
@@ -488,13 +515,12 @@ void audio_received_cb(USBDriver *usbp, usbep_t ep) {
     } else {
         // Samples were received successfully.
         audio_update_write_offset(transaction_size);
+        audio_update_read_offset();
+        audio_update_fill_level();
+        audio_start_playback();
     }
 
     usbStartReceiveI(usbp, ep, (uint8_t *)&p_playback->buffer[p_playback->buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
-
-    audio_update_read_offset();
-    audio_update_fill_level();
-    audio_start_playback();
 
     chSysUnlockFromISR();
 }
@@ -697,8 +723,7 @@ static void audio_start_streaming(USBDriver *usbp) {
         return;
     }
 
-    audio_init_playback(p_playback);
-    p_playback->b_streaming_enabled = true;
+    audio_init_playback(p_playback, true);
 
     chSysLockFromISR();
 

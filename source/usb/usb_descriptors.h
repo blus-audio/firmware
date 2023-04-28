@@ -26,11 +26,6 @@
 #define USB_DESC_FS_BINTERVAL 0x01u
 
 /**
- * @brief The period between feedback packets in 2^N ms.
- */
-#define USB_DESC_FEEDBACK_PERIOD 0x06u  // 2^6 ms = 64 ms
-
-/**
  * @brief Terminal type: Loudspeaker.
  */
 #define USB_DESC_TERMINAL_TYPE                      0x0301u
@@ -188,7 +183,7 @@ static const uint8_t audio_configuration_descriptor_data[122] = {
     USB_DESC_BYTE(USB_EP_MODE_TYPE_ISOC),            // bmAttributes.
     USB_DESC_WORD(USB_DESC_MAX_IN_SIZE),             // wMaxPacketSize
     USB_DESC_BYTE(USB_DESC_FS_BINTERVAL),            // bInterval (1 ms).
-    USB_DESC_BYTE(USB_DESC_FEEDBACK_PERIOD),         // bRefresh.
+    USB_DESC_BYTE(AUDIO_FEEDBACK_PERIOD_EXPONENT),   // bRefresh.
     USB_DESC_BYTE(0x00u),                            // bSynchAddress (none).
 };
 
