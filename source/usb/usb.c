@@ -70,6 +70,7 @@ void usb_event_cb(USBDriver *usbp, usbevent_t event) {
     switch (event) {
         case USB_EVENT_ADDRESS:
             return;
+
         case USB_EVENT_CONFIGURED:
             // Enables configured endpoints.
             chSysLockFromISR();
@@ -77,15 +78,16 @@ void usb_event_cb(USBDriver *usbp, usbevent_t event) {
             usbInitEndpointI(usbp, AUDIO_FEEDBACK_ENDPOINT, &endpoint2_config);
             chSysUnlockFromISR();
             return;
+
         case USB_EVENT_RESET:
-            // Falls into...
         case USB_EVENT_UNCONFIGURED:
-            // Falls into...
         case USB_EVENT_SUSPEND:
-            audio_stop_streaming(usbp);
+            audio_reset(usbp);
             return;
+
         case USB_EVENT_WAKEUP:
             return;
+
         case USB_EVENT_STALLED:
             return;
     }

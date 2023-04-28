@@ -269,6 +269,7 @@ uint32_t audio_get_feedback_value(void);
 bool     audio_channel_is_muted(enum audio_channel audio_channel);
 
 void     audio_setup(mailbox_t *p_mailbox);
+void     audio_reset(USBDriver *usbp);
 void     audio_stop_streaming(USBDriver *usbp);
 bool     audio_requests_hook_cb(USBDriver *usbp);
 void     audio_received_cb(USBDriver *usbp, usbep_t ep);

@@ -739,7 +739,7 @@ static void audio_start_streaming(USBDriver *usbp) {
 
 /**
  * @brief Disable audio streaming and output.
- * @details Is called on USB reset, or when the audio endpoint goes into its zero bandwidth alternate mode.
+ * @details Is called when the audio endpoint goes into its zero bandwidth alternate mode, or by \a audio_reset() .
  *
  * @param usbp The pointer to the USB driver structure.
  */
@@ -757,6 +757,19 @@ void audio_stop_streaming(USBDriver *usbp) {
     chSysLockFromISR();
     audio_stop_playback();
     chSysUnlockFromISR();
+}
+
+/**
+ * @brief Reset the audio module.
+ * @details Is called on USB reset, unconfigure, or suspend. First calls \a audio_stop_streaming() , then resets the
+ * internal state of the module.
+ *
+ * @param usbp The pointer to the USB driver structure.
+ */
+void audio_reset(USBDriver *usbp) {
+    (void)usbp;
+    audio_stop_streaming(usbp);
+    audio_init_context(&g_audio_context, g_audio_context.p_mailbox);
 }
 
 /**
