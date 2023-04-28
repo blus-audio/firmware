@@ -44,6 +44,11 @@ msg_t g_mailbox_buffer[MESSAGE_BUFFER_LENGTH];
 adcsample_t g_adc_sample;
 
 /**
+ * @brief Global stream pointer for print messages.
+ */
+BaseSequentialStream *gp_stream = (BaseSequentialStream *)&SD2;
+
+/**
  * @brief Settings structure for the TAS2780 I2C driver.
  */
 static const I2CConfig g_tas2780_i2c_config = {
@@ -85,28 +90,21 @@ static THD_WORKING_AREA(wa_reporting_thread, 128);
  */
 static THD_FUNCTION(reporting_thread, arg) {
     (void)arg;
-    static BaseSequentialStream *p_stream = (BaseSequentialStream *)&SD2;
-
-    sdStart(&SD2, NULL);
     chRegSetThreadName("reporting");
-
-    chprintf(p_stream, "Using %u byte per sample at %lu Hz, %lu byte per frame.\n", AUDIO_SAMPLE_SIZE,
-             AUDIO_SAMPLE_RATE_HZ, AUDIO_PACKET_SIZE);
-    chprintf(p_stream, "Audio buffer holds %lu bytes (%lu packets).\n", AUDIO_BUFFER_SIZE, AUDIO_BUFFER_PACKET_COUNT);
 
     while (true) {
         tas2780_ensure_active_all();
 
         uint8_t noise_gate_mask = tas2780_get_noise_gate_mask_all();
-        chprintf(p_stream, "Noise gate: %u\n", noise_gate_mask);
+        chprintf(gp_stream, "Noise gate: %u\n", noise_gate_mask);
 
-        chprintf(p_stream, "Potentiometer: %u\n",
+        chprintf(gp_stream, "Potentiometer: %u\n",
                  g_adc_sample >> 4);  // Convert to an 8 bit number.
 
-        chprintf(p_stream, "Volume: %li / %li dB\n", (audio_channel_get_volume(AUDIO_CHANNEL_LEFT) >> 8),
+        chprintf(gp_stream, "Volume: %li / %li dB\n", (audio_channel_get_volume(AUDIO_CHANNEL_LEFT) >> 8),
                  (audio_channel_get_volume(AUDIO_CHANNEL_RIGHT) >> 8));
 
-        chprintf(p_stream, "Audio buffer fill level: %lu / %lu\n", audio_get_fill_level(), AUDIO_BUFFER_SIZE);
+        chprintf(gp_stream, "Audio buffer fill level: %lu / %lu\n", audio_get_fill_level(), AUDIO_BUFFER_SIZE);
 
         chThdSleepMilliseconds(1000);
     }
@@ -121,6 +119,13 @@ static THD_FUNCTION(reporting_thread, arg) {
 int main(void) {
     halInit();
     chSysInit();
+
+    // Initialize a stream for print messages.
+    sdStart(&SD2, NULL);
+
+    chprintf(gp_stream, "Using %u byte per sample at %lu Hz, %lu byte per frame.\n", AUDIO_SAMPLE_SIZE,
+             AUDIO_SAMPLE_RATE_HZ, AUDIO_PACKET_SIZE);
+    chprintf(gp_stream, "Audio buffer holds %lu bytes (%lu packets).\n", AUDIO_BUFFER_SIZE, AUDIO_BUFFER_PACKET_COUNT);
 
     // Initialize the main thread mailbox that receives audio messages (volume, mute).
     chMBObjectInit(&g_mailbox, g_mailbox_buffer, ARRAY_LENGTH(g_mailbox_buffer));
@@ -154,11 +159,7 @@ int main(void) {
 
         switch (message) {
             case AUDIO_MSG_RESET_VOLUME:
-                // Introduce a short delay before resetting volume. This ensures the end of audio playback and avoids
-                // any audible pops. Otherwise, the volume might be reset while samples are still being played back.
-                chThdSleepMilliseconds(10);
-
-                // Restore volume levels to maximum when instructed (after streaming ends).
+                // Restore volume levels to maximum when instructed (e.g. after streaming ends).
                 tas2780_set_volume_all(TAS2780_VOLUME_MAX, TAS2780_CHANNEL_BOTH);
                 break;
 
