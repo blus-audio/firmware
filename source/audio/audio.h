@@ -121,7 +121,7 @@
  *
  * For example, 16 represents a reported offset of 1.024 Hz - a mild adjustment.
  */
-#define AUDIO_FEEDBACK_CORRECTION_OFFSET (256u)
+#define AUDIO_FEEDBACK_CORRECTION_OFFSET (64u)
 
 /**
  * @brief The minimum supported exponent of the period between feedback packets.
