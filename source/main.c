@@ -43,10 +43,12 @@ msg_t g_mailbox_buffer[MESSAGE_BUFFER_LENGTH];
  */
 adcsample_t g_adc_sample;
 
+#if ENABLE_REPORTING == TRUE
 /**
  * @brief Global stream pointer for print messages.
  */
 BaseSequentialStream *gp_stream = (BaseSequentialStream *)&SD2;
+#endif
 
 /**
  * @brief Settings structure for the TAS2780 I2C driver.
@@ -121,14 +123,6 @@ int main(void) {
     halInit();
     chSysInit();
 
-    // Initialize a stream for print messages.
-    sdStart(&SD2, NULL);
-
-    chprintf(gp_stream, "Using %u byte per sample at %lu Hz, %lu byte per frame.\n", AUDIO_SAMPLE_SIZE,
-             AUDIO_SAMPLE_RATE_HZ, AUDIO_PACKET_SIZE);
-    chprintf(gp_stream, "Audio buffer holds %lu bytes (%lu packets).\n", AUDIO_BUFFER_SIZE, AUDIO_BUFFER_PACKET_COUNT);
-    chprintf(gp_stream, "Audio feedback period is %lu ms.\n", AUDIO_FEEDBACK_PERIOD_MS);
-
     // Initialize the main thread mailbox that receives audio messages (volume, mute).
     chMBObjectInit(&g_mailbox, g_mailbox_buffer, ARRAY_LENGTH(g_mailbox_buffer));
 
@@ -146,6 +140,14 @@ int main(void) {
     start_volume_adc();
 
 #if ENABLE_REPORTING == TRUE
+    // Initialize a stream for print messages.
+    sdStart(&SD2, NULL);
+
+    chprintf(gp_stream, "Using %u byte per sample at %lu Hz, %lu byte per frame.\n", AUDIO_SAMPLE_SIZE,
+             AUDIO_SAMPLE_RATE_HZ, AUDIO_PACKET_SIZE);
+    chprintf(gp_stream, "Audio buffer holds %lu bytes (%lu packets).\n", AUDIO_BUFFER_SIZE, AUDIO_BUFFER_PACKET_COUNT);
+    chprintf(gp_stream, "Audio feedback period is %lu ms.\n", AUDIO_FEEDBACK_PERIOD_MS);
+    //
     // Create reporting thread.
     chThdCreateStatic(wa_reporting_thread, sizeof(wa_reporting_thread), NORMALPRIO, reporting_thread, NULL);
 #endif

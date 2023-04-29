@@ -57,7 +57,7 @@
  * done so that the volume is not reset during short playback pauses, but remains at the configured level.
  * @note A setting of \a CH_CFG_ST_FREQUENCY leads to a timeout of one second.
  */
-#define AUDIO_RESET_VOLUME_TIMEOUT CH_CFG_ST_FREQUENCY
+#define AUDIO_RESET_VOLUME_TIMEOUT (CH_CFG_ST_FREQUENCY / 10u)  // 100 ms delay
 
 /**
  * @brief The size of each audio sample in bytes.
