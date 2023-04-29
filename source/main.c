@@ -84,19 +84,19 @@ void start_volume_adc(void) {
     adcStartConversion(&ADCD1, &adc_conversion_group, &g_adc_sample, 1u);
 }
 
-#if ENABLE_REPORTING == TRUE
-static THD_WORKING_AREA(wa_reporting_thread, 128);
+static THD_WORKING_AREA(wa_housekeeping_thread, 128);
 
 /**
- * @brief A reporting thread that outputs status information via UART.
+ * @brief A housekeeping thread that checks amplifier states, and outputs status information via UART (if enabled).
  */
-static THD_FUNCTION(reporting_thread, arg) {
+static THD_FUNCTION(housekeeping_thread, arg) {
     (void)arg;
     chRegSetThreadName("reporting");
 
     while (true) {
         tas2780_ensure_active_all();
 
+#if ENABLE_REPORTING == TRUE
         uint8_t noise_gate_mask = tas2780_get_noise_gate_mask_all();
         chprintf(gp_stream, "Noise gate: %u\n", noise_gate_mask);
 
@@ -108,11 +108,11 @@ static THD_FUNCTION(reporting_thread, arg) {
 
         chprintf(gp_stream, "Audio buffer fill level: %lu / %lu (feedback %lu)\n", audio_get_fill_level(),
                  AUDIO_BUFFER_SIZE, audio_get_feedback_value());
+#endif
 
-        chThdSleepMilliseconds(1000);
+        chThdSleepMilliseconds(500);
     }
 }
-#endif
 
 /**
  * @brief Application entry point.
@@ -126,18 +126,18 @@ int main(void) {
     // Initialize the main thread mailbox that receives audio messages (volume, mute).
     chMBObjectInit(&g_mailbox, g_mailbox_buffer, ARRAY_LENGTH(g_mailbox_buffer));
 
-    // Initialize audio module, giving it access to the main thread's mailbox.
-    audio_setup(&g_mailbox);
-
-    // Initialize the USB module.
-    usb_setup();
-
     // Setup amplifiers.
     i2cStart(&I2CD1, &g_tas2780_i2c_config);
     tas2780_setup_all();
 
+    // Initialize audio module, giving it access to the main thread's mailbox.
+    audio_setup(&g_mailbox);
+
     // Begin reading volume potentiometer ADC.
     start_volume_adc();
+
+    // Initialize the USB module.
+    usb_setup();
 
 #if ENABLE_REPORTING == TRUE
     // Initialize a stream for print messages.
@@ -147,10 +147,10 @@ int main(void) {
              AUDIO_SAMPLE_RATE_HZ, AUDIO_PACKET_SIZE);
     chprintf(gp_stream, "Audio buffer holds %lu bytes (%lu packets).\n", AUDIO_BUFFER_SIZE, AUDIO_BUFFER_PACKET_COUNT);
     chprintf(gp_stream, "Audio feedback period is %lu ms.\n", AUDIO_FEEDBACK_PERIOD_MS);
-    //
-    // Create reporting thread.
-    chThdCreateStatic(wa_reporting_thread, sizeof(wa_reporting_thread), NORMALPRIO, reporting_thread, NULL);
 #endif
+
+    // Create housekeeping thread for regular tasks.
+    chThdCreateStatic(wa_housekeeping_thread, sizeof(wa_housekeeping_thread), NORMALPRIO, housekeeping_thread, NULL);
 
     // Wait for a message from the audio thread.
     while (true) {
