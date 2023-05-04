@@ -11,8 +11,8 @@ The project is based upon the real-time operating system [ChibiOs](https://www.c
 
 # Features
 
-Currently, the firmware supports:
-- 16 bit and 32 bit / 48 kHz audio (selectable in [the audio configuration file](./source/audio/audio_settings.h))
+The firmware supports:
+- Any combination of: 16 bit or 32 bit resolution / 48 kHz or 96 kHz sample rate (selectable in [the audio configuration file](./source/audio/audio_settings.h))
 - Mute control, which enables hardware mute on the connected amplifiers
 - Volume control, which controls the amplifier volume directly
 
@@ -24,13 +24,12 @@ The firmware is built around the STM32F401(RB), but can be ported to other devic
 
 ## Clocks
 
-The firmware assumes an HSE clock source with a frequency of 24.576 MHz. Using the provided PLL settings, the processor will run at 64 MHz with the I2S peripheral PLL at 147.456 MHz. This enables
+The firmware assumes an externally connected (HSE bypass) clock source with a frequency of 24.576 MHz. By default, the PLL settings result in a system clock of 64 MHz. Using the I2S PLL as the I2S clock source, the I2S peripheral runs at 147.456 MHz with the provided PLL settings.
 
-- Error-free I2S clocks for audio sample rates (e.g. 48 kHz)
-- Error-free 48 MHz clocks
+- Error-free I2S clocks for audio sample rates are available (48 kHz, 96 kHz).
+- Error-free 48 MHz clocks are provided.
 
 Find the clock tree, generated with CubeMX, below.
-
 ![clocks](./doc/images/clocks.png "Clock tree")
 
 ## GPIO

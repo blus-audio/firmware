@@ -134,11 +134,14 @@
 #define AUDIO_FEEDBACK_MAX_PERIOD_EXPONENT 0x06u
 
 /**
+ * @brief The bit-shift that needs to be applied to the timer counter values for calculating the feedback value.
+ */
+#define AUDIO_FEEDBACK_SHIFT (AUDIO_FEEDBACK_MAX_PERIOD_EXPONENT - AUDIO_FEEDBACK_PERIOD_EXPONENT)
+
+/**
  * @brief The audio feedback period duration in ms.
  */
 #define AUDIO_FEEDBACK_PERIOD_MS (1 << AUDIO_FEEDBACK_PERIOD_EXPONENT)
-
-#define AUDIO_FEEDBACK_SHIFT     (AUDIO_FEEDBACK_MAX_PERIOD_EXPONENT - AUDIO_FEEDBACK_PERIOD_EXPONENT)
 
 /**
  * @brief The size of the packets for the feedback endpoint.
@@ -147,13 +150,24 @@
  */
 #define AUDIO_FEEDBACK_BUFFER_SIZE 3u
 
-// Sanity checks.
-#if AUDIO_SAMPLE_RATE_HZ != 48000u
-#error "Unsupported sample rate. Must be 48 kHz."
+/**
+ * @brief Calculate the I2S clock divider from the I2S PLL clock output and the selected sample rate.
+ * @note See the STM32F401 reference manual at p. 594.
+ */
+#define AUDIO_SPI_I2SPR_I2SDIV (STM32_PLLI2S_R_CLKOUT / AUDIO_SAMPLE_RATE_HZ / 512u)
+
+// Set the I2S CFGR register depending on the chosen audio resolution.
+#if AUDIO_RESOLUTION_BIT == 16u
+#define AUDIO_I2S_CFGR 0u
+#elif AUDIO_RESOLUTION_BIT == 32u
+#define AUDIO_I2S_CFGR SPI_I2SCFGR_DATLEN_1
+#else
+#error "Unsupported audio resolution. Must be 16, or 32 bit."
 #endif
 
-#if (AUDIO_RESOLUTION_BIT != 16u) && (AUDIO_RESOLUTION_BIT != 32u)
-#error "Unsupported audio resolution. Must be 16, or 32 bit."
+// Sanity checks.
+#if (AUDIO_SAMPLE_RATE_HZ != 48000u) && (AUDIO_SAMPLE_RATE_HZ != 96000)
+#error "Unsupported sample rate. Must be 48 kHz or 96 kHz."
 #endif
 
 #if AUDIO_MAX_PACKET_SIZE < AUDIO_PACKET_SIZE

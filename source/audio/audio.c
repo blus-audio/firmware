@@ -43,12 +43,8 @@ static const I2SConfig g_i2s_config = {.tx_buffer = (const uint8_t *)g_audio_con
                                        .rx_buffer = NULL,
                                        .size      = AUDIO_BUFFER_SIZE / AUDIO_SAMPLE_SIZE,  // Number of samples.
                                        .end_cb    = NULL,
-#if AUDIO_RESOLUTION_BIT == 16u
-                                       .i2scfgr = 0u,
-#elif AUDIO_RESOLUTION_BIT == 32u
-                                       .i2scfgr = SPI_I2SCFGR_DATLEN_1,
-#endif
-                                       .i2spr = SPI_I2SPR_MCKOE | (SPI_I2SPR_I2SDIV & 6)};
+                                       .i2scfgr   = AUDIO_I2S_CFGR,
+                                       .i2spr     = SPI_I2SPR_MCKOE | (SPI_I2SPR_I2SDIV & AUDIO_SPI_I2SPR_I2SDIV)};
 
 /**
  * @brief Get the audio buffer fill level.

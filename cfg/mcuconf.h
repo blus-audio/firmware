@@ -244,4 +244,4 @@
  */
 #define STM32_WDG_USE_IWDG FALSE
 
-#endif /* CFG_MCUCONF_H_ */
+#endif  // CFG_MCUCONF_H_
