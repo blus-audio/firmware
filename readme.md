@@ -5,7 +5,7 @@
 This is a firmware project for a UAC 1.0 compliant sound card.
 
 The implementation outputs audio data to a digital I2S amplifier - the [TAS2780](https://www.ti.com/product/TAS2780). However, any I2S DAC could be the target of the audio stream.
-The software is designed to run on the [STM32F401](https://www.st.com/en/microcontrollers-microprocessors/stm32f401.html) - in particular the cheaply available STM32F401RB, which has the lowest amount of flash memory and RAM of all STM32F401 class devices. 
+The software is designed to run on the [STM32F401](https://www.st.com/en/microcontrollers-microprocessors/stm32f401.html) - in particular the cheaply available STM32F401RB, which has the lowest amount of flash memory and RAM of all STM32F401 class devices.
 Thus, this firmware also runs on any of the larger variants (STM32F401RC, STM32F401RD, STM32F401RE).
 
 Theoretically compatible controllers (any memory configuration) are
