@@ -4,9 +4,9 @@
 
 This is a firmware project for a UAC 1.0 compliant sound card.
 
-This implementation outputs audio data to a digital I2S amplifier - the [TAS2780](https://www.ti.com/product/TAS2780).
-The software is designed to run on [STM32F401](https://www.st.com/en/microcontrollers-microprocessors/stm32f401.html) - in particular the cheaply available STM32F401RB, which has the lowest amount of flash memory and RAM of all devices. 
-Thus, this firmware also runs on any of the larger devices.
+The implementation outputs audio data to a digital I2S amplifier - the [TAS2780](https://www.ti.com/product/TAS2780). However, any I2S DAC could be the target of the audio stream.
+The software is designed to run on the [STM32F401](https://www.st.com/en/microcontrollers-microprocessors/stm32f401.html) - in particular the cheaply available STM32F401RB, which has the lowest amount of flash memory and RAM of all STM32F401 class devices. 
+Thus, this firmware also runs on any of the larger variants (STM32F401RC, STM32F401RD, STM32F401RE).
 
 Theoretically compatible controllers (any memory configuration) are
 - STM32F401Rx
@@ -15,7 +15,7 @@ Theoretically compatible controllers (any memory configuration) are
 - STM32F413Rx (untested)
 - STM32F423Rx (untested)
 
-as they all fulfill the peripheral requirements (I2S, USB OTG) and come in pin-compatible footprints. Only the STM32F401Rx has been tested.
+as they all fulfill the peripheral requirements (I2S, USB OTG) and come in pin-compatible footprints (the letter R denotes 64-pin LQFP). Only the STM32F401Rx has been tested as of now.
 
 The project is based upon the real-time operating system [ChibiOs](https://www.chibios.org/dokuwiki/doku.php) and inspired by [a demo project](https://forum.chibios.org/viewtopic.php?f=16&t=926&start=20) with heavy modifications.
 
