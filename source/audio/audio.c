@@ -388,18 +388,15 @@ static void audio_update_write_offset(size_t transaction_size) {
     chDbgAssert(new_buffer_write_offset < ARRAY_LENGTH(p_playback->buffer), "Transaction size exceeds audio buffer.");
 
 #if AUDIO_RESOLUTION_BIT == 32u
-    // Swap upper and lower 16 bit of received audio samples to comply with the expected I2S DMA data format.
-    for (size_t sample_index = 0; sample_index < transaction_size / AUDIO_SAMPLE_SIZE; sample_index++) {
-        size_t    sample_offset       = p_playback->buffer_write_offset + AUDIO_SAMPLE_SIZE * sample_index;
+    // Audio samples are now words (32 bit long).
+    // Swap upper and lower 16 bit of received audio samples, as the I2S DMA otherwise transfers them in the wrong
+    // order. The I2S DMA handles word transfers as two separate half-word transfers.
+    uint32_t    *p_word     = (uint32_t *)(&p_playback->buffer[p_playback->buffer_write_offset]);
+    const size_t WORD_COUNT = transaction_size / AUDIO_SAMPLE_SIZE;
 
-        uint16_t *p_lower_sample_half = (uint16_t *)(&p_playback->buffer[sample_offset]);
-        uint16_t *p_upper_sample_half = (uint16_t *)(&p_playback->buffer[sample_offset + sizeof(uint16_t)]);
-
-        uint16_t  lower_sample_half   = *p_lower_sample_half;
-        uint16_t  upper_sample_half   = *p_upper_sample_half;
-
-        *p_upper_sample_half          = lower_sample_half;
-        *p_lower_sample_half          = upper_sample_half;
+    for (size_t word_index = 0; word_index < WORD_COUNT; word_index++) {
+        *p_word = SWAP_HALF_WORDS(*p_word);
+        p_word++;
     }
 #endif
 

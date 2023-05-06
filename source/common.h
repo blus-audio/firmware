@@ -39,6 +39,11 @@
 #define GET_BYTE(_value, _byte_index) ((_value >> (8u * _byte_index)) & 0xFFu)
 
 /**
+ * @brief Swap upper and lower half-words (16 bit) of a word (32 bit).
+ */
+#define SWAP_HALF_WORDS(_value) ((((_value) >> 16u) & 0xFFFFu) | (((_value) << 16u) & 0xFFFFu))
+
+/**
  * @brief Write a value to an array of bytes, starting at the LSB.
  *
  * @param p_bytes The array of bytes to write.
