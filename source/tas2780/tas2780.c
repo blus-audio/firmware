@@ -203,7 +203,7 @@ static void tas2780_setup(struct tas2780_context *p_context) {
     // Set the analog gain of the amplifier.
     tas2780_write_register(
         p_context, TAS2780_CHNL_0_REG,
-        ((0x03u << TAS2780_CHNL_0_CDS_MODE_POS) & TAS2780_CHNL_0_CDS_MODE_MASK) |
+        ((TAS2780_CHNL_0_CDS_MODE_DEFAULT << TAS2780_CHNL_0_CDS_MODE_POS) & TAS2780_CHNL_0_CDS_MODE_MASK) |
             ((p_context->analog_gain_setting << TAS2780_CHNL_0_AMP_LEVEL_POS) & TAS2780_CHNL_0_AMP_LEVEL_MASK));
 
     // Set up "PWR_MODE2".
@@ -219,8 +219,8 @@ static void tas2780_setup(struct tas2780_context *p_context) {
 
     // The TDM_CFG2 register content - initially without channel information.
     uint8_t tdm_cfg2 =
-        ((0x02u << TAS2780_TDM_CFG2_RX_SLEN_POS) & TAS2780_TDM_CFG2_RX_SLEN_MASK) |
-        ((0x02u << TAS2780_TDM_CFG2_RX_WLEN_POS) & TAS2780_TDM_CFG2_RX_WLEN_MASK) |
+        ((TAS2780_TDM_CFG2_RX_SLEN_DEFAULT << TAS2780_TDM_CFG2_RX_SLEN_POS) & TAS2780_TDM_CFG2_RX_SLEN_MASK) |
+        ((TAS2780_TDM_CFG2_RX_WLEN_DEFAULT << TAS2780_TDM_CFG2_RX_WLEN_POS) & TAS2780_TDM_CFG2_RX_WLEN_MASK) |
         ((TAS2780_TDM_CFG2_RX_SCFG_DEFAULT << TAS2780_TDM_CFG2_RX_SCFG_POS) & TAS2780_TDM_CFG2_RX_SCFG_MASK);
 
     // The TDM_CFG3 register content.

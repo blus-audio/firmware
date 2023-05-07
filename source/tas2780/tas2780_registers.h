@@ -82,7 +82,7 @@
 
 #define TAS2780_CHNL_0_CDS_MODE_POS      (6u)
 #define TAS2780_CHNL_0_CDS_MODE_MASK     (0x03u << TAS2780_CHNL_0_CDS_MODE_POS)
-#define TAS2780_CHNL_0_CDS_MODE_DEFAULT  (0x00u)
+#define TAS2780_CHNL_0_CDS_MODE_DEFAULT  (0x03u)  ///< Y-Bridge, low power on VBAT1S
 
 // DC_BLK0 register
 #define TAS2780_DC_BLK0_REG                 (0x04u)
@@ -108,11 +108,11 @@
 
 #define TAS2780_TDM_CFG2_RX_SLEN_POS             (0u)
 #define TAS2780_TDM_CFG2_RX_SLEN_MASK            (0x03u << TAS2780_TDM_CFG2_RX_SLEN_POS)
-#define TAS2780_TDM_CFG2_RX_SLEN_DEFAULT         (0x02u)
+#define TAS2780_TDM_CFG2_RX_SLEN_DEFAULT         (0x03u)  ///< 32 bit word length.
 
 #define TAS2780_TDM_CFG2_RX_WLEN_POS             (2u)
 #define TAS2780_TDM_CFG2_RX_WLEN_MASK            (0x03u << TAS2780_TDM_CFG2_RX_WLEN_POS)
-#define TAS2780_TDM_CFG2_RX_WLEN_DEFAULT         (0x02u)
+#define TAS2780_TDM_CFG2_RX_WLEN_DEFAULT         (0x03u)  ///< 32 bit word length.
 
 #define TAS2780_TDM_CFG2_RX_SCFG_MONO_I2C        (0x0u)  ///< TDM channel selection by I2C address.
 #define TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT       (0x1u)  ///< TDM channel selection: left.
@@ -147,15 +147,15 @@
 
 #define TAS2780_NG_CFG0_NG_EN_POS       (2u)
 #define TAS2780_NG_CFG0_NG_EN_MASK      (0x01u << TAS2780_NG_CFG0_NG_EN_POS)
-#define TAS2780_NG_CFG0_NG_EN_DEFAULT   (0x01u)
+#define TAS2780_NG_CFG0_NG_EN_DEFAULT   (0x01u)  ///< Enabled.
 
 #define TAS2780_NG_CFG0_NG_LVL_POS      (3u)
 #define TAS2780_NG_CFG0_NG_LVL_MASK     (0x03u << TAS2780_NG_CFG0_NG_LVL_POS)
-#define TAS2780_NG_CFG0_NG_LVL_DEFAULT  (0x03u)  ///< 0x00 ... 0x03 (-90 dBFS ... -120 dBFS)
+#define TAS2780_NG_CFG0_NG_LVL_DEFAULT  (0x00u)  ///< 0x00 ... 0x03 (-90 dBFS ... -120 dBFS)
 
 #define TAS2780_NG_CFG0_NG_HYST_POS     (5u)
 #define TAS2780_NG_CFG0_NG_HYST_MASK    (0x03u << TAS2780_NG_CFG0_NG_HYST_POS)
-#define TAS2780_NG_CFG0_NG_HYST_DEFAULT (0x05u)
+#define TAS2780_NG_CFG0_NG_HYST_DEFAULT (0x05u)  ///< 50 ms.
 
 // INT_LIVE1 register
 #define TAS2780_INT_LIVE1_REG         (0x43u)
