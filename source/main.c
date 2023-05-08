@@ -110,7 +110,7 @@ static THD_FUNCTION(housekeeping_thread, arg) {
                  AUDIO_BUFFER_SIZE, audio_get_feedback_value());
 #endif
 
-        chThdSleepMilliseconds(250);
+        chThdSleepMilliseconds(500);
     }
 }
 
