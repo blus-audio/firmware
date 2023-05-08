@@ -44,7 +44,7 @@
 // General audio settings.
 #define AUDIO_MAX_VOLUME_DB          0
 #define AUDIO_MIN_VOLUME_DB          -100
-#define AUDIO_VOLUME_INCREMENT_STEPS 128  // 0.5 dB, since 256 steps are one full dB.
+#define AUDIO_VOLUME_INCREMENT_STEPS 256  // 1 dB steps.
 #define AUDIO_CHANNEL_COUNT          2u
 
 // Definitions that are regularly reused.
