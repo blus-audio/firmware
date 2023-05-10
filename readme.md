@@ -2,9 +2,8 @@
 
 # USB-I2S audio bridge
 
-This is a firmware project for a UAC 1.0 compliant sound card.
+This is a firmware project that mainly implements a UAC 1.0 compliant sound card.
 
-The implementation outputs audio data to a digital I2S amplifier - the [TAS2780](https://www.ti.com/product/TAS2780). However, any I2S DAC could be the target of the audio stream.
 The software is designed to run on the [STM32F401](https://www.st.com/en/microcontrollers-microprocessors/stm32f401.html) - in particular the cheaply available STM32F401RB, which has the lowest amount of flash memory and RAM of all STM32F401 class devices.
 Thus, this firmware also runs on any of the larger variants (STM32F401RC, STM32F401RD, STM32F401RE).
 
@@ -23,8 +22,8 @@ The project is based upon the real-time operating system [ChibiOs](https://www.c
 
 The firmware supports:
 - Any combination of: 16 bit or 32 bit resolution / 48 kHz or 96 kHz sample rate (selectable in [the audio configuration file](./source/audio/audio_settings.h))
-- Mute control, which enables hardware mute on the connected amplifiers
-- Volume control, which controls the amplifier volume directly
+- Mute control
+- Volume control
 
 The audio stream is never manipulated.
 
@@ -32,7 +31,8 @@ The audio stream is never manipulated.
 
 The firmware is built around the STM32F401(RB), but can be ported to other devices that are supported by ChibiOs and have the required peripherals.
 
-It is intended to run on [blus-audio hardware](https://github.com/blus-audio/hardware).
+It is made to run on [blus-audio hardware](https://github.com/blus-audio/hardware).
+See the [applications directory](./apps/) for implementations that run on different variants of the blus hardware, and information on how to build this firmware for different targets.
 
 ## Clocks
 
