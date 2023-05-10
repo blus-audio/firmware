@@ -32,6 +32,8 @@ The audio stream is never manipulated.
 
 The firmware is built around the STM32F401(RB), but can be ported to other devices that are supported by ChibiOs and have the required peripherals.
 
+It is intended to run on [blus-audio hardware](https://github.com/blus-audio/hardware).
+
 ## Clocks
 
 The firmware assumes an externally connected (HSE bypass) clock source with a frequency of 24.576 MHz. By default, the PLL settings result in a system clock of 64 MHz. Using the I2S PLL as the I2S clock source, the I2S peripheral runs at 147.456 MHz with the provided PLL settings.
