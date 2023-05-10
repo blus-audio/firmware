@@ -2,13 +2,12 @@
 
 /**
  * @file
- * @brief   The main application module.
+ * @brief   The main module.
  * @details Contains the main application thread, and from there sets up
  * - general USB handling,
  * - the audio module,
- * - volume potentiometer ADC readout,
- * - amplifier/DAC controls, and
- * - reporting functionality.
+ * - reporting functionality, and
+ * - the user application
  *
  * @addtogroup main
  * @{
@@ -20,7 +19,6 @@
 #include "ch.h"
 #include "chprintf.h"
 #include "hal.h"
-#include "tas2780.h"
 #include "usb.h"
 
 /**
@@ -31,88 +29,41 @@
 /**
  * @brief The main thread mailbox. Used for communicating with the audio module.
  */
-mailbox_t g_mailbox;
+static mailbox_t g_mailbox;
 
 /**
  * @brief The mailbox buffer.
  */
-msg_t g_mailbox_buffer[MESSAGE_BUFFER_LENGTH];
-
-/**
- * @brief The volume potentiometer ADC sample (12 bit long).
- */
-adcsample_t g_adc_sample;
+static msg_t g_mailbox_buffer[MESSAGE_BUFFER_LENGTH];
 
 #if ENABLE_REPORTING == TRUE
 /**
  * @brief Global stream pointer for print messages.
  */
-BaseSequentialStream *gp_stream = (BaseSequentialStream *)&SD2;
+static BaseSequentialStream *gp_stream = (BaseSequentialStream *)&SD2;
 #endif
 
-/**
- * @brief Settings structure for the TAS2780 I2C driver.
- */
-static const I2CConfig g_tas2780_i2c_config = {
-    .op_mode = OPMODE_I2C, .clock_speed = 100000u, .duty_cycle = STD_DUTY_CYCLE};
+// Weak definitions that shall be overwritten by the user application.
 
 /**
- * @brief Starts continuous sampling of the volume potentiometer ADC.
- * @note The result is currently unused.
+ * @brief Set up the user application.
  */
-void start_volume_adc(void) {
-    // ADC conversion group:
-    // - continuous conversion
-    // - 480 samples conversion time
-    // - Channel 9
-    static const ADCConversionGroup adc_conversion_group = {.circular     = TRUE,
-                                                            .num_channels = 1,
-                                                            .end_cb       = NULL,
-                                                            .error_cb     = NULL,
-                                                            .cr1          = 0u,
-                                                            .cr2          = ADC_CR2_SWSTART,
-                                                            .smpr1        = 0u,
-                                                            .smpr2        = ADC_SMPR2_SMP_AN9(ADC_SAMPLE_480),
-                                                            .htr          = 0u,
-                                                            .ltr          = 0u,
-                                                            .sqr1         = 0u,
-                                                            .sqr2         = 0u,
-                                                            .sqr3         = ADC_SQR3_SQ1_N(ADC_CHANNEL_IN9)};
-
-    // Start continuous conversion.
-    adcStart(&ADCD1, NULL);
-    adcStartConversion(&ADCD1, &adc_conversion_group, &g_adc_sample, 1u);
-}
-
-static THD_WORKING_AREA(wa_housekeeping_thread, 128);
+__WEAK void app_setup(void) {}
 
 /**
- * @brief A housekeeping thread that checks amplifier states, and outputs status information via UART (if enabled).
+ * @brief Reset volume to maximum levels, when instructed (e.g. when stream ends).
  */
-static THD_FUNCTION(housekeeping_thread, arg) {
-    (void)arg;
-    chRegSetThreadName("reporting");
+__WEAK void app_reset_volume(void) {}
 
-    while (true) {
-        tas2780_ensure_active_all();
+/**
+ * @brief Set a new volume from a USB configuration message.
+ */
+__WEAK void app_set_volume(void) {}
 
-#if ENABLE_REPORTING == TRUE
-        uint8_t noise_gate_mask = tas2780_get_noise_gate_mask_all();
-        chprintf(gp_stream, "Noise gate: %u\n", noise_gate_mask);
-
-        chprintf(gp_stream, "Potentiometer: %u\n",
-                 g_adc_sample >> 4);  // Convert to an 8 bit number.
-
-        chprintf(gp_stream, "Volume: %li / %li dB\n", (audio_channel_get_volume(AUDIO_CHANNEL_LEFT) >> 8),
-                 (audio_channel_get_volume(AUDIO_CHANNEL_RIGHT) >> 8));
-
-        chprintf(gp_stream, "Audio buffer fill level: %lu / %lu (feedback %lu)\n", audio_get_fill_level(),
-                 AUDIO_BUFFER_SIZE, audio_get_feedback_value());
-#endif
-
-        chThdSleepMilliseconds(500);
-    }
-}
+/**
+ * @brief Set a new mute state from a USB configuration message.
+ */
+__WEAK void app_set_mute_state(void) {}
 
 /**
  * @brief Application entry point.
@@ -126,15 +77,8 @@ int main(void) {
     // Initialize the main thread mailbox that receives audio messages (volume, mute).
     chMBObjectInit(&g_mailbox, g_mailbox_buffer, ARRAY_LENGTH(g_mailbox_buffer));
 
-    // Setup amplifiers.
-    i2cStart(&I2CD1, &g_tas2780_i2c_config);
-    tas2780_setup_all();
-
     // Initialize audio module, giving it access to the main thread's mailbox.
     audio_setup(&g_mailbox);
-
-    // Begin reading volume potentiometer ADC.
-    start_volume_adc();
 
     // Initialize the USB module.
     usb_setup();
@@ -149,8 +93,8 @@ int main(void) {
     chprintf(gp_stream, "Audio feedback period is %lu ms.\n", AUDIO_FEEDBACK_PERIOD_MS);
 #endif
 
-    // Create housekeeping thread for regular tasks.
-    chThdCreateStatic(wa_housekeeping_thread, sizeof(wa_housekeeping_thread), NORMALPRIO, housekeeping_thread, NULL);
+    // Set up the user application.
+    app_setup();
 
     // Wait for a message from the audio thread.
     while (true) {
@@ -163,25 +107,15 @@ int main(void) {
 
         switch (message) {
             case AUDIO_MSG_RESET_VOLUME:
-                // Restore volume levels to maximum when instructed (e.g. after streaming ends).
-                tas2780_set_volume_all(TAS2780_VOLUME_MAX, TAS2780_CHANNEL_BOTH);
+                app_reset_volume();
                 break;
 
             case AUDIO_MSG_SET_MUTE_STATE:
-            case AUDIO_MSG_SET_VOLUME:
-                // Joint handling of volume and mute controls. Only adjust volume, when streaming over USB. Other audio
-                // sources must not be affected by USB volume adjustments.
-                if (audio_channel_is_muted(AUDIO_CHANNEL_LEFT)) {
-                    tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_LEFT);
-                } else {
-                    tas2780_set_volume_all(audio_channel_get_volume(AUDIO_CHANNEL_LEFT), TAS2780_CHANNEL_LEFT);
-                }
+                app_set_mute_state();
+                break;
 
-                if (audio_channel_is_muted(AUDIO_CHANNEL_RIGHT)) {
-                    tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_RIGHT);
-                } else {
-                    tas2780_set_volume_all(audio_channel_get_volume(AUDIO_CHANNEL_RIGHT), TAS2780_CHANNEL_RIGHT);
-                }
+            case AUDIO_MSG_SET_VOLUME:
+                app_set_volume();
                 break;
 
             default:
