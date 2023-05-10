@@ -36,4 +36,3 @@ jobs:
       with:
         files: |
           build/*.hex
-          build/*.elf
