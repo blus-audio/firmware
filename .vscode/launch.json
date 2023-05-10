@@ -7,7 +7,7 @@
         {
             "name": "Cortex Debug - STLink",
             "cwd": "${workspaceFolder}",
-            "executable": "./build/usbi2s.elf",
+            "executable": "./build/blus_mini_firmware.elf",
             "svdFile": "STM32F401.svd",
             "request": "launch",
             "type": "cortex-debug",
@@ -22,7 +22,7 @@
         {
             "name": "Cortex Debug - External",
             "cwd": "${workspaceFolder}",
-            "executable": "./build/usbi2s.elf",
+            "executable": "./build/blus_mini_firmware.elf",
             "svdFile": "STM32F401.svd",
             "request": "launch",
             "type": "cortex-debug",

@@ -2,7 +2,7 @@
 
 /**
  * @file
- * @brief   The user application module.
+ * @brief   The user application module for the blus mini hardware.
  * @details Contains the user application functions that provide
  * - volume potentiometer ADC readout,
  * - amplifier/DAC controls, and
