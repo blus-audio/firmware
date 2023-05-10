@@ -3,6 +3,10 @@
 # NOTE: Can be overridden externally.
 #
 
+ifeq ($(APP),)
+  APP = default
+endif
+
 # Compiler options here.
 ifeq ($(USE_OPT),)
   USE_OPT = -Og -ggdb -fomit-frame-pointer -falign-functions=16
@@ -82,8 +86,10 @@ endif
 # Project, target, sources and paths
 #
 
+$(info Selected app "$(APP)".)
+
 # Define project name here
-PROJECT = usbi2s
+PROJECT = $(APP)_firmware
 
 # Target settings.
 MCU  = cortex-m4
@@ -94,6 +100,8 @@ CONFDIR  := ./cfg
 BUILDDIR := ./build
 DEPDIR   := ./.dep
 BOARDDIR := ./board
+APPSDIR  := ./apps
+APPDIR   := $(APPSDIR)/$(APP)
 
 # Licensing files.
 include $(CHIBIOS)/os/license/license.mk
@@ -110,6 +118,8 @@ include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/ARMv7-M/compilers/GCC/mk/port.mk
 # Auto-build files in ./source recursively.
 include $(CHIBIOS)/tools/mk/autobuild.mk
+# Include user app
+include $(APPDIR)/rules.mk
 
 # Define linker script file here.
 LDSCRIPT= ./STM32F401xB.ld

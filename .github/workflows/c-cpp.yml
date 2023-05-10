@@ -16,8 +16,11 @@ jobs:
       uses: carlosperate/arm-none-eabi-gcc-action@v1
     - run: arm-none-eabi-gcc --version
 
-    - name: Build application
-      run: make -j
+    - name: Build default application
+      run: make -j APP=default
+
+    - name: Build blus mini application
+      run: make -j APP=blus_mini
 
     - name: Archive build artifacts
       uses: actions/upload-artifact@v3
