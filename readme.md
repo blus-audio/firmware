@@ -68,12 +68,12 @@ This section will be gradually extended.
 In general, the USB sound card and the host machine that it connects to, do not share the same clock domain. Their respective reference clocks are therefore different. This is caused by component tolerances or imperfections - especially in oscillators.
 
 In consequence, the USB host most likely provides audio samples at a different rate than the sound card's I2S peripheral consumes them at.
-Inevitably, if the host fills up an audio buffer on the device via USB, and the I2S peripheral consumes data from the same buffer, the clock discrepancy will cause the buffer fill level to increase or decrease over time. How fast the fill level changes, depends on the amount of clock discrepancy.
+Inevitably, if the host fills up an audio buffer on the device via USB, and the I2S peripheral consumes data from the same buffer, the clock discrepancy will cause the buffer fill size to increase or decrease over time. How fast the fill size changes, depends on the amount of clock discrepancy.
 At some point, the buffer write (USB) and read (I2S) pointers will meet, and the buffer over- or underruns. This leads to audible artifacts.
 
 While larger audio buffers can partially hide this issue, by making it appear less frequently, they cause additional latency.
 
-In order to mitigate the buffer fill level drift, the standard suggests a feedback mechanism. The sound card shall measure its actual output sample rate with reference to the USB start of frame (SOF) clock, and report it to the host. In full-speed USB, the SOF period is specified to be 1 ms long.
+In order to mitigate the buffer fill size drift, the standard suggests a feedback mechanism. The sound card shall measure its actual output sample rate with reference to the USB start of frame (SOF) clock, and report it to the host. In full-speed USB, the SOF period is specified to be 1 ms long.
 
 In the implementation of this firmware, a hardware timer is clocked by the I2S master clock output. The timer counts clock cycles for a specified amount of SOF periods - in this case 64 (equals 64 ms). From that counter value, a feedback value is derived and submitted to the host.
 

@@ -86,35 +86,35 @@
 #define AUDIO_BUFFER_SIZE (AUDIO_PACKET_SIZE * AUDIO_BUFFER_PACKET_COUNT)
 
 /**
- * @brief The target buffer fill level in bytes.
+ * @brief The target buffer fill size.
  * @details By adding half a packet size, the buffer level is equal to half the buffer size on average. Buffer level is
  * measured only after USB packets have arrived and count towards the buffer level.
  */
-#define AUDIO_BUFFER_TARGET_FILL_LEVEL_BYTES (AUDIO_BUFFER_SIZE / 2u + AUDIO_PACKET_SIZE / 2u)
+#define AUDIO_BUFFER_TARGET_FILL_SIZE (AUDIO_BUFFER_SIZE / 2u + AUDIO_PACKET_SIZE / 2u)
 
 /**
- * @brief The allowed margin for the buffer fill level in bytes.
- * @details If the actual fill level is closer to zero or the end of the buffer than specified by the value, this
- * application attempts to force the host to adjust fill level by means of changing the reported feedback value.
+ * @brief The allowed margin for the buffer fill size.
+ * @details If the actual fill size is closer to zero or the end of the buffer than specified by the value, this
+ * application attempts to force the host to adjust fill size by means of changing the reported feedback value.
  *
  * @note This should not occur, if
  * - the host adheres to the provided feedback, and does not drop packets, and
  * - does not send excessive amounts of data.
  */
-#define AUDIO_BUFFER_FILL_MARGIN_BYTES (AUDIO_PACKET_SIZE / 2u)
+#define AUDIO_BUFFER_FILL_SIZE_MARGIN (AUDIO_PACKET_SIZE / 2u)
 
 /**
- * @brief The lower boundary for the buffer fill level in bytes.
+ * @brief The lower boundary for the buffer fill size.
  */
-#define AUDIO_BUFFER_MIN_FILL_LEVEL_BYTES (AUDIO_BUFFER_TARGET_FILL_LEVEL_BYTES - AUDIO_BUFFER_FILL_MARGIN_BYTES)
+#define AUDIO_BUFFER_MIN_FILL_SIZE (AUDIO_BUFFER_TARGET_FILL_SIZE - AUDIO_BUFFER_FILL_SIZE_MARGIN)
 
 /**
- * @brief The upper boundary for the buffer fill level in bytes.
+ * @brief The upper boundary for the buffer fill size.
  */
-#define AUDIO_BUFFER_MAX_FILL_LEVEL_BYTES (AUDIO_BUFFER_TARGET_FILL_LEVEL_BYTES + AUDIO_BUFFER_FILL_MARGIN_BYTES)
+#define AUDIO_BUFFER_MAX_FILL_SIZE (AUDIO_BUFFER_TARGET_FILL_SIZE + AUDIO_BUFFER_FILL_SIZE_MARGIN)
 
 /**
- * @brief The amount by which the feedback value is adjusted, when the buffer fill level is critical.
+ * @brief The amount by which the feedback value is adjusted, when the buffer fill size is critical.
  *
  * @details This translates to a difference in reported sample rate of
  * \a AUDIO_FEEDBACK_CORRECTION_OFFSET * 2**14 / 1000
@@ -174,7 +174,7 @@
 #error "The maximum audio packet size should be larger than the regular packet size."
 #endif
 
-#if AUDIO_BUFFER_MIN_FILL_LEVEL_BYTES > AUDIO_BUFFER_MAX_FILL_LEVEL_BYTES
+#if AUDIO_BUFFER_MIN_FILL_SIZE > AUDIO_BUFFER_MAX_FILL_SIZE
 #error "Inconsistent settings, sample count tolerance likely too large."
 #endif
 
@@ -239,12 +239,12 @@ struct audio_playback {
     uint8_t buffer[AUDIO_BUFFER_SIZE + AUDIO_MAX_PACKET_SIZE];  ///< The audio sample buffer.
     size_t  buffer_write_offset;                                ///< The current write offset in bytes (USB).
     size_t  buffer_read_offset;                                 ///< The current read offset in bytes (I2S).
-    size_t  buffer_fill_level_bytes;  ///< The fill level, which is the distance between read (I2S) and write (USB)
-                                      ///< memory locations, in bytes.
-    bool b_streaming_enabled;         ///< True, if audio streaming is enabled, and
-                                      ///< data is being received via USB.
-    bool b_playback_enabled;          ///< True, if the audio output is enabled, and data
-                                      ///< is being output via I2S.
+    size_t  buffer_fill_size;  ///< The fill size, which is the distance between read (I2S) and write (USB)
+                               ///< memory locations, in bytes.
+    bool b_streaming_enabled;  ///< True, if audio streaming is enabled, and
+                               ///< data is being received via USB.
+    bool b_playback_enabled;   ///< True, if the audio output is enabled, and data
+                               ///< is being output via I2S.
 };
 
 /**

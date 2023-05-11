@@ -47,11 +47,11 @@ static const I2SConfig g_i2s_config = {.tx_buffer = (const uint8_t *)g_audio_con
                                        .i2spr     = SPI_I2SPR_MCKOE | (SPI_I2SPR_I2SDIV & AUDIO_SPI_I2SPR_I2SDIV)};
 
 /**
- * @brief Get the audio buffer fill level.
+ * @brief Get the audio buffer fill size.
  *
- * @return uint16_t The fill level.
+ * @return uint16_t The fill size.
  */
-uint16_t audio_get_fill_level(void) { return g_audio_context.playback.buffer_fill_level_bytes; }
+uint16_t audio_get_fill_level(void) { return g_audio_context.playback.buffer_fill_size; }
 
 /**
  * @brief Check the mute state of an audio channel.
@@ -128,11 +128,11 @@ static void audio_init_feedback(volatile struct audio_feedback *p_feedback) {
  * @param b_streaming_enabled If true, USB audio streaming is set to being enabled.
  */
 static void audio_init_playback(volatile struct audio_playback *p_playback, bool b_streaming_enabled) {
-    p_playback->buffer_write_offset     = 0u;
-    p_playback->buffer_read_offset      = 0u;
-    p_playback->buffer_fill_level_bytes = 0u;
-    p_playback->b_playback_enabled      = false;
-    p_playback->b_streaming_enabled     = b_streaming_enabled;
+    p_playback->buffer_write_offset = 0u;
+    p_playback->buffer_read_offset  = 0u;
+    p_playback->buffer_fill_size    = 0u;
+    p_playback->b_playback_enabled  = false;
+    p_playback->b_streaming_enabled = b_streaming_enabled;
 }
 
 /**
@@ -184,12 +184,12 @@ static void audio_feedback_correct(void) {
     volatile struct audio_diagnostics *p_diagnostics = &g_audio_context.diagnostics;
 
     if (p_feedback->correction_state == AUDIO_FEEDBACK_CORRECTION_STATE_OFF) {
-        if (p_playback->buffer_fill_level_bytes > AUDIO_BUFFER_MAX_FILL_LEVEL_BYTES) {
-            // The fill level is too high, compensate by means of lower feedback value.
+        if (p_playback->buffer_fill_size > AUDIO_BUFFER_MAX_FILL_SIZE) {
+            // The fill size is too high, compensate by means of lower feedback value.
             p_feedback->correction_state = AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE;
             p_diagnostics->error_count++;
-        } else if (p_playback->buffer_fill_level_bytes < AUDIO_BUFFER_MIN_FILL_LEVEL_BYTES) {
-            // The fill level is too low, compensate by means of higher feedback value.
+        } else if (p_playback->buffer_fill_size < AUDIO_BUFFER_MIN_FILL_SIZE) {
+            // The fill size is too low, compensate by means of higher feedback value.
             p_feedback->correction_state = AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE;
             p_diagnostics->error_count++;
         }
@@ -197,8 +197,8 @@ static void audio_feedback_correct(void) {
 
     switch (p_feedback->correction_state) {
         case AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE:
-            if (p_playback->buffer_fill_level_bytes <= AUDIO_BUFFER_TARGET_FILL_LEVEL_BYTES) {
-                // Switch off correction, when reaching target fill level.
+            if (p_playback->buffer_fill_size <= AUDIO_BUFFER_TARGET_FILL_SIZE) {
+                // Switch off correction, when reaching target fill size.
                 p_feedback->correction_state = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
             } else {
                 p_feedback->value -= AUDIO_FEEDBACK_CORRECTION_OFFSET;
@@ -206,8 +206,8 @@ static void audio_feedback_correct(void) {
             break;
 
         case AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE:
-            if (p_playback->buffer_fill_level_bytes >= AUDIO_BUFFER_TARGET_FILL_LEVEL_BYTES) {
-                // Switch off correction, when reaching target fill level.
+            if (p_playback->buffer_fill_size >= AUDIO_BUFFER_TARGET_FILL_SIZE) {
+                // Switch off correction, when reaching target fill size.
                 p_feedback->correction_state = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
             }
             { p_feedback->value += AUDIO_FEEDBACK_CORRECTION_OFFSET; }
@@ -296,7 +296,7 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
 
         p_feedback->last_counter_value = counter_value;
 
-        // If there is too much discrepancy between the target sample buffer fill level, and the actual fill level, this
+        // If there is too much discrepancy between the target sample buffer fill size, and the actual fill size, this
         // must be compensated manually.
         audio_feedback_correct();
 
@@ -434,7 +434,7 @@ static void audio_update_read_offset(void) {
 }
 
 /**
- * @brief Calculate the audio buffer fill level.
+ * @brief Calculate the audio buffer fill size.
  * @details This is the difference in bytes between the write offset (USB) and read offset (I2S DMA) - the number of
  * bytes that can still be written via I2S, before the buffer runs out.
  */
@@ -442,12 +442,12 @@ static void audio_update_fill_level(void) {
     volatile struct audio_playback *p_playback = &g_audio_context.playback;
 
     // Calculate the distance between the DMA read offset, and the USB driver's write offset in the playback buffer.
-    p_playback->buffer_fill_level_bytes =
+    p_playback->buffer_fill_size =
         subtract_circular_unsigned(p_playback->buffer_write_offset, p_playback->buffer_read_offset, AUDIO_BUFFER_SIZE);
 }
 
 /**
- * @brief Start playback, when the target audio buffer fill level is reached.
+ * @brief Start playback, when the target audio buffer fill size is reached.
  * @details I2S transfers are started by sending a \a AUDIO_MSG_START_PLAYBACK message.
  */
 static void audio_start_playback(void) {
@@ -458,8 +458,8 @@ static void audio_start_playback(void) {
         return;
     }
 
-    if (p_playback->buffer_fill_level_bytes >= AUDIO_BUFFER_TARGET_FILL_LEVEL_BYTES) {
-        // Signal that the playback buffer is at or above the target fill level. This starts audio playback via I2S.
+    if (p_playback->buffer_fill_size >= AUDIO_BUFFER_TARGET_FILL_SIZE) {
+        // Signal that the playback buffer is at or above the target fill size. This starts audio playback via I2S.
         p_playback->b_playback_enabled = true;
 
         chMBPostI(&g_audio_mailbox, AUDIO_MSG_START_PLAYBACK);

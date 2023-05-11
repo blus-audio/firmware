@@ -8,8 +8,8 @@
  * @{
  */
 
-#ifndef SOURCE_TAS2780_TAS2780_H_
-#define SOURCE_TAS2780_TAS2780_H_
+#ifndef SOURCE_DRIVERS_TAS2780_TAS2780_H_
+#define SOURCE_DRIVERS_TAS2780_TAS2780_H_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -61,7 +61,7 @@ void    tas2780_init(struct tas2780_context *p_context, uint16_t device_address)
 void    tas2780_ensure_active_all(void);
 uint8_t tas2780_get_noise_gate_mask_all(void);
 
-#endif  // SOURCE_TAS2780_TAS2780_H_
+#endif  // SOURCE_DRIVERS_TAS2780_TAS2780_H_
 
 /**
  * @}

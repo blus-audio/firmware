@@ -84,7 +84,7 @@ static THD_FUNCTION(housekeeping_thread, arg) {
         chprintf(gp_stream, "Volume: %li / %li dB\n", (audio_channel_get_volume(AUDIO_CHANNEL_LEFT) >> 8),
                  (audio_channel_get_volume(AUDIO_CHANNEL_RIGHT) >> 8));
 
-        chprintf(gp_stream, "Audio buffer fill level: %lu / %lu (feedback %lu)\n", audio_get_fill_level(),
+        chprintf(gp_stream, "Audio buffer fill size: %lu / %lu (feedback %lu)\n", audio_get_fill_level(),
                  AUDIO_BUFFER_SIZE, audio_get_feedback_value());
 #endif
 
@@ -128,17 +128,17 @@ static void app_set_volume_and_mute_state(void) {
 /**
  * @brief Reset the TAS2780 volume levels to maximum.
  */
-void app_reset_volume(void) { tas2780_set_volume_all(TAS2780_VOLUME_MAX, TAS2780_CHANNEL_BOTH); };
+void app_reset_volume(void) { tas2780_set_volume_all(TAS2780_VOLUME_MAX, TAS2780_CHANNEL_BOTH); }
 
 /**
  * @brief Set a new volume on the TAS2780 amplifiers. Calls \a app_set_volume_and_mute_state() internally.
  */
-void app_set_volume(void) { app_set_volume_and_mute_state(); };
+void app_set_volume(void) { app_set_volume_and_mute_state(); }
 
 /**
  * @brief Set new mute states on the TAS2780 amplifiers. Calls \a app_set_volume_and_mute_state() internally.
  */
-void app_set_mute_state(void) { app_set_volume_and_mute_state(); };
+void app_set_mute_state(void) { app_set_volume_and_mute_state(); }
 
 /**
  * @}
