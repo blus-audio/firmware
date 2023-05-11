@@ -27,12 +27,31 @@ The firmware supports:
 
 The audio stream is never manipulated.
 
+# Building
+
+The firmware is built with `make` and the [GNU Arm Embedded Toolchain](https://developer.arm.com/downloads/-/gnu-rm). With the toolchain installed and in your `path`, simply run
+
+```bash
+make
+```
+
+in the root of the repository for building the default application with 48 kHz sample rate at 32 bit resolution.
+
+Choose a specific application by appending the `APP` switch, e.g.
+
+```bash
+make APP=blus-mini
+```
+
+The available applications are found in [the applications folder](./apps).
+
+For changing the audio sample rate, or the resolution, please adjust [the audio settings file](./source/audio/audio_settings.h).
+
 # Hardware requirements
 
 The firmware is built around the STM32F401(RB), but can be ported to other devices that are supported by ChibiOs and have the required peripherals.
 
-It is made to run on [blus-audio hardware](https://github.com/blus-audio/hardware).
-See the [applications directory](./apps/) for implementations that run on different variants of the blus hardware, and information on how to build this firmware for different targets.
+It is made to run on [blus-audio hardware](https://github.com/blus-audio/hardware). The [applications directory](./apps/) contains implementations that run on different variants of the blus hardware.
 
 ## Clocks
 

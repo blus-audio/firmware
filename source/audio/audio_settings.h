@@ -13,6 +13,7 @@
 
 /**
  * @brief The audio sample rate in Hz.
+ * @note Currently supports 48 kHz and 96 kHz.
  */
 #ifndef AUDIO_SAMPLE_RATE_HZ
 #define AUDIO_SAMPLE_RATE_HZ 48000u
@@ -20,6 +21,7 @@
 
 /**
  * @brief The resolution of an audio sample in bits.
+ * @note Currently supports 16 and 32 bit.
  */
 #ifndef AUDIO_RESOLUTION_BIT
 #define AUDIO_RESOLUTION_BIT 32u
