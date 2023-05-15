@@ -28,15 +28,15 @@
 /**
  * @brief Terminal type: Loudspeaker.
  */
-#define USB_DESC_TERMINAL_TYPE                      0x0301u
+#define USB_DESC_TERMINAL_TYPE 0x0301u
 
 #define USB_DESC_INTERFACE_PROTOCOL_UNDEFINED       0x00u
 #define USB_DESC_INTERFACE_CLASS_AUDIO              0x01u
 #define USB_DESC_INTERFACE_SUBCLASS_AUDIO_CONTROL   0x01u
 #define USB_DESC_INTERFACE_SUBCLASS_AUDIO_STREAMING 0x02u
 
-#define USB_DESC_INTERFACE_ALT_SETTING_ZERO_BW      0x00u
-#define USB_DESC_INTERFACE_ALT_SETTING_OPERATIONAL  0x01u
+#define USB_DESC_INTERFACE_ALT_SETTING_ZERO_BW     0x00u
+#define USB_DESC_INTERFACE_ALT_SETTING_OPERATIONAL 0x01u
 
 static const uint8_t audio_device_descriptor_data[18] = {
     USB_DESC_DEVICE(0x0110u,  // bcdUSB (1.1).
@@ -45,7 +45,7 @@ static const uint8_t audio_device_descriptor_data[18] = {
                     0x00u,    // bDeviceProtocol.
                     0x40u,    // bMaxPacketSize.
                     0x1209u,  // idVendor.
-                    0x0001u,  // idProduct.
+                    0xAF01u,  // idProduct.
                     0x0001u,  // bcdDevice.
                     1u,       // iManufacturer.
                     2u,       // iProduct.
@@ -57,17 +57,19 @@ static const uint8_t audio_device_descriptor_data[18] = {
 static const USBDescriptor audio_device_descriptor = {sizeof audio_device_descriptor_data,
                                                       audio_device_descriptor_data};
 
-// Configuration Descriptor tree for a UAC.
-static const uint8_t audio_configuration_descriptor_data[122] = {
-    // Configuration Descriptor. (UAC 4.2)
-    USB_DESC_CONFIGURATION(122u,   // wTotalLength.
-                           0x02u,  // bNumInterfaces.
-                           0x01u,  // bConfigurationValue.
-                           0u,     // iConfiguration.
-                           0xC0u,  // bmAttributes (self powered).
-                           50u),   // bMaxPower (100mA).
+#define USB_DESCRIPTORS_TOTAL_LENGTH 125u
 
-    //  Standard Audio Control Interface Descriptor (UAC 4.3.1)
+// Configuration Descriptor tree for a UAC.
+static const uint8_t audio_configuration_descriptor_data[USB_DESCRIPTORS_TOTAL_LENGTH] = {
+    // Configuration Descriptor. (UAC 4.2)
+    USB_DESC_CONFIGURATION(USB_DESCRIPTORS_TOTAL_LENGTH,  // wTotalLength.
+                           0x02u,                         // bNumInterfaces.
+                           0x01u,                         // bConfigurationValue.
+                           0u,                            // iConfiguration.
+                           0xC0u,                         // bmAttributes (self powered).
+                           50u),                          // bMaxPower (100mA).
+
+    // Standard Audio Control Interface Descriptor (UAC 4.3.1)
     USB_DESC_INTERFACE(AUDIO_CONTROL_INTERFACE,                    // bInterfaceNumber.
                        0x00u,                                      // bAlternateSetting.
                        0x00u,                                      // bNumEndpoints.
@@ -76,7 +78,7 @@ static const uint8_t audio_configuration_descriptor_data[122] = {
                        0x00u,                                      // bInterfaceProtocol (none).
                        0u),                                        // iInterface.
 
-    //  Class-specific AC Interface Descriptor (UAC 4.3.2)
+    // Class-specific AC Interface Descriptor (UAC 4.3.2)
     USB_DESC_BYTE(9u),                         // bLength.
     USB_DESC_BYTE(0x24u),                      // bDescriptorType (CS_INTERFACE).
     USB_DESC_BYTE(0x01u),                      // bDescriptorSubtype (Header).
@@ -146,17 +148,20 @@ static const uint8_t audio_configuration_descriptor_data[122] = {
     USB_DESC_WORD(0x0001u),              // wFormatTag (PCM format).
 
     // Class-Specific AS Format Type Descriptor (UAC 4.5.3)
-    USB_DESC_BYTE(11u),                                 // bLength.
-    USB_DESC_BYTE(0x24u),                               // bDescriptorType (CS_INTERFACE).
-    USB_DESC_BYTE(0x02u),                               // bDescriptorSubtype (Format).
-    USB_DESC_BYTE(0x01u),                               // bFormatType (Type I).
-    USB_DESC_BYTE(AUDIO_CHANNEL_COUNT),                 // bNrChannels.
-    USB_DESC_BYTE(AUDIO_SAMPLE_SIZE),                   // bSubframeSize.
-    USB_DESC_BYTE(AUDIO_RESOLUTION_BIT),                // bBitResolution.
-    USB_DESC_BYTE(0x01u),                               // bSamFreqType (Type I).
-    USB_DESC_BYTE(GET_BYTE(AUDIO_SAMPLE_RATE_HZ, 0u)),  // Audio sampling frequency, byte 0.
-    USB_DESC_BYTE(GET_BYTE(AUDIO_SAMPLE_RATE_HZ, 1u)),  // Audio sampling frequency, byte 1.
-    USB_DESC_BYTE(GET_BYTE(AUDIO_SAMPLE_RATE_HZ, 2u)),  // Audio sampling frequency, byte 2.
+    USB_DESC_BYTE(14u),                                     // bLength.
+    USB_DESC_BYTE(0x24u),                                   // bDescriptorType (CS_INTERFACE).
+    USB_DESC_BYTE(0x02u),                                   // bDescriptorSubtype (Format).
+    USB_DESC_BYTE(0x02u),                                   // bFormatType (Type I).
+    USB_DESC_BYTE(AUDIO_CHANNEL_COUNT),                     // bNrChannels.
+    USB_DESC_BYTE(AUDIO_SAMPLE_SIZE),                       // bSubframeSize.
+    USB_DESC_BYTE(AUDIO_RESOLUTION_BIT),                    // bBitResolution.
+    USB_DESC_BYTE(0x02u),                                   // bSamFreqType (Type I).
+    USB_DESC_BYTE(GET_BYTE(AUDIO_SAMPLE_RATE_48_KHZ, 0u)),  // Audio sampling frequency, byte 0.
+    USB_DESC_BYTE(GET_BYTE(AUDIO_SAMPLE_RATE_48_KHZ, 1u)),  // Audio sampling frequency, byte 1.
+    USB_DESC_BYTE(GET_BYTE(AUDIO_SAMPLE_RATE_48_KHZ, 2u)),  // Audio sampling frequency, byte 2.
+    USB_DESC_BYTE(GET_BYTE(AUDIO_SAMPLE_RATE_96_KHZ, 0u)),  // Audio sampling frequency, byte 0.
+    USB_DESC_BYTE(GET_BYTE(AUDIO_SAMPLE_RATE_96_KHZ, 1u)),  // Audio sampling frequency, byte 1.
+    USB_DESC_BYTE(GET_BYTE(AUDIO_SAMPLE_RATE_96_KHZ, 2u)),  // Audio sampling frequency, byte 2.
 
     // Standard AS Isochronous Audio Data Endpoint Descriptor (UAC 4.6.1.1)
     USB_DESC_BYTE(9u),                               // bLength (9).
@@ -172,7 +177,7 @@ static const uint8_t audio_configuration_descriptor_data[122] = {
     USB_DESC_BYTE(7u),       // bLength.
     USB_DESC_BYTE(0x25u),    // bDescriptorType (CS_ENDPOINT).
     USB_DESC_BYTE(0x01u),    // bDescriptorSubtype (General).
-    USB_DESC_BYTE(0x00u),    // bmAttributes (none).
+    USB_DESC_BYTE(0x01u),    // bmAttributes - support sampling frequency adjustment.
     USB_DESC_BYTE(0x02u),    // bLockDelayUnits (PCM Samples).
     USB_DESC_WORD(0x0000u),  // bLockDelay (0).
 
@@ -199,23 +204,7 @@ static const uint8_t audio_string0[] = {
 };
 
 // Vendor string.
-static const uint8_t audio_string1[] = {USB_DESC_BYTE(14u),                    // bLength.
-                                        USB_DESC_BYTE(USB_DESCRIPTOR_STRING),  // bDescriptorType.
-                                        'e',
-                                        0u,
-                                        'l',
-                                        0u,
-                                        'a',
-                                        0u,
-                                        'g',
-                                        0u,
-                                        'i',
-                                        0u,
-                                        'l',
-                                        0u};
-
-// Device Description string.
-static const uint8_t audio_string2[] = {USB_DESC_BYTE(20u),                    // bLength.
+static const uint8_t audio_string1[] = {USB_DESC_BYTE(22u),                    // bLength.
                                         USB_DESC_BYTE(USB_DESCRIPTOR_STRING),  // bDescriptorType.
                                         'b',
                                         0u,
@@ -225,15 +214,49 @@ static const uint8_t audio_string2[] = {USB_DESC_BYTE(20u),                    /
                                         0u,
                                         's',
                                         0u,
+                                        '-',
+                                        0u,
+                                        'a',
+                                        0u,
+                                        'u',
+                                        0u,
+                                        'd',
+                                        0u,
+                                        'i',
+                                        0u,
+                                        'o',
+                                        0u};
+
+// Device Description string.
+static const uint8_t audio_string2[] = {USB_DESC_BYTE(30u),                    // bLength.
+                                        USB_DESC_BYTE(USB_DESCRIPTOR_STRING),  // bDescriptorType.
+                                        'U',
+                                        0u,
+                                        'S',
+                                        0u,
+                                        'B',
+                                        0u,
+                                        '-',
+                                        0u,
+                                        'I',
+                                        0u,
+                                        '2',
+                                        0,
+                                        'S',
+                                        0u,
                                         ' ',
                                         0u,
-                                        'm',
-                                        0,
-                                        'i',
+                                        'b',
                                         0u,
-                                        'n',
+                                        'r',
                                         0u,
                                         'i',
+                                        0u,
+                                        'd',
+                                        0u,
+                                        'g',
+                                        0u,
+                                        'e',
                                         0u};
 
 // Serial Number string.

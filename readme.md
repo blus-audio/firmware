@@ -21,11 +21,15 @@ The project is based upon the real-time operating system [ChibiOs](https://www.c
 # Features
 
 The firmware supports:
-- Any combination of: 16 bit or 32 bit resolution / 48 kHz or 96 kHz sample rate (selectable in [the audio configuration file](./source/audio/audio_settings.h))
+- Any combination of: 16 bit or 32 bit resolution / 48 kHz or 96 kHz sample rate
+- The sample rate can be switched at runtime
+- The resolution is selectable in [the audio configuration file](./source/audio/audio_settings.h)
+
+Further, the firmware can forward the following configuration requests to an application layer:
 - Mute control
 - Volume control
 
-The audio stream is never manipulated.
+The audio stream is never manipulated by mute or volume control.
 
 # Building
 
@@ -99,4 +103,4 @@ In the implementation of this firmware, a hardware timer is clocked by the I2S m
 This feedback mechanism is a control loop, where the sound card (USB device) is a mere *sensor* and the host machine (USB host) is the *controller*.
 
 For more detail, see [UAC 1.0 specification](./doc/audio10.pdf). The audio feedback mechanism is implemented as described in *3.7.2.2 Isochronous Synch Endpoint* (p. 32).
-An extended description is found in the [general USB 2.0 specification](./doc/usb_20.pdf) in *5.12.4.2 Feedback* (p.75).
+An extended description is found in the [general USB 2.0 specification](./doc/usb_20.pdf) in *5.12.4.2 Feedback* (p.75). Information about [supported audio formats](./doc/frmts10.pdf) is also contained.

@@ -43,7 +43,7 @@ static msg_t g_mailbox_buffer[MESSAGE_BUFFER_LENGTH];
 static BaseSequentialStream *gp_stream = (BaseSequentialStream *)&SD2;
 #endif
 
-// Weak definitions that shall be overwritten by the user application.
+// Weak definitions that shall be overridden by the user application (if required).
 
 /**
  * @brief Set up the user application.
@@ -87,10 +87,7 @@ int main(void) {
     // Initialize a stream for print messages.
     sdStart(&SD2, NULL);
 
-    chprintf(gp_stream, "Using %u byte per sample at %lu Hz, %lu byte per frame.\n", AUDIO_SAMPLE_SIZE,
-             AUDIO_SAMPLE_RATE_HZ, AUDIO_PACKET_SIZE);
-    chprintf(gp_stream, "Audio buffer holds %lu bytes (%lu packets).\n", AUDIO_BUFFER_SIZE, AUDIO_BUFFER_PACKET_COUNT);
-    chprintf(gp_stream, "Audio feedback period is %lu ms.\n", AUDIO_FEEDBACK_PERIOD_MS);
+    chprintf(gp_stream, "Starting USB-I2S bridge.\n");
 #endif
 
     // Set up the user application.
@@ -106,15 +103,15 @@ int main(void) {
         }
 
         switch (message) {
-            case AUDIO_MSG_RESET_VOLUME:
+            case AUDIO_COMMON_MSG_RESET_VOLUME:
                 app_reset_volume();
                 break;
 
-            case AUDIO_MSG_SET_MUTE_STATE:
+            case AUDIO_COMMON_MSG_SET_MUTE_STATE:
                 app_set_mute_state();
                 break;
 
-            case AUDIO_MSG_SET_VOLUME:
+            case AUDIO_COMMON_MSG_SET_VOLUME:
                 app_set_volume();
                 break;
 
