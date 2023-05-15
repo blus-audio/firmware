@@ -82,22 +82,22 @@
 #define GPIOA_SWCLK     14U
 #define GPIOA_PIN15     15U
 
-#define GPIOB_PIN0      0U
-#define GPIOB_VOL_POT   1U
-#define GPIOB_PIN2      2U
-#define GPIOB_SWO       3U
-#define GPIOB_PIN4      4U
-#define GPIOB_PIN5      5U
-#define GPIOB_I2C1_SCL  6U
-#define GPIOB_I2C1_SDA  7U
-#define GPIOB_PIN8      8U
-#define GPIOB_PIN9      9U
-#define GPIOB_PIN10     10U
-#define GPIOB_PIN11     11U
-#define GPIOB_PIN12     12U
-#define GPIOB_PIN13     13U
-#define GPIOB_NSPK_SD   14U
-#define GPIOB_PIN15     15U
+#define GPIOB_PIN0     0U
+#define GPIOB_VOL_POT  1U
+#define GPIOB_PIN2     2U
+#define GPIOB_SWO      3U
+#define GPIOB_PIN4     4U
+#define GPIOB_PIN5     5U
+#define GPIOB_I2C1_SCL 6U
+#define GPIOB_I2C1_SDA 7U
+#define GPIOB_PIN8     8U
+#define GPIOB_PIN9     9U
+#define GPIOB_PIN10    10U
+#define GPIOB_PIN11    11U
+#define GPIOB_PIN12    12U
+#define GPIOB_PIN13    13U
+#define GPIOB_NSPK_SD  14U
+#define GPIOB_PIN15    15U
 
 #define GPIOC_PIN0      0U
 #define GPIOC_PIN1      1U
@@ -116,107 +116,107 @@
 #define GPIOC_OSC32_IN  14U
 #define GPIOC_OSC32_OUT 15U
 
-#define GPIOD_PIN0      0U
-#define GPIOD_PIN1      1U
-#define GPIOD_PIN2      2U
-#define GPIOD_PIN3      3U
-#define GPIOD_PIN4      4U
-#define GPIOD_PIN5      5U
-#define GPIOD_PIN6      6U
-#define GPIOD_PIN7      7U
-#define GPIOD_PIN8      8U
-#define GPIOD_PIN9      9U
-#define GPIOD_PIN10     10U
-#define GPIOD_PIN11     11U
-#define GPIOD_PIN12     12U
-#define GPIOD_PIN13     13U
-#define GPIOD_PIN14     14U
-#define GPIOD_PIN15     15U
+#define GPIOD_PIN0  0U
+#define GPIOD_PIN1  1U
+#define GPIOD_PIN2  2U
+#define GPIOD_PIN3  3U
+#define GPIOD_PIN4  4U
+#define GPIOD_PIN5  5U
+#define GPIOD_PIN6  6U
+#define GPIOD_PIN7  7U
+#define GPIOD_PIN8  8U
+#define GPIOD_PIN9  9U
+#define GPIOD_PIN10 10U
+#define GPIOD_PIN11 11U
+#define GPIOD_PIN12 12U
+#define GPIOD_PIN13 13U
+#define GPIOD_PIN14 14U
+#define GPIOD_PIN15 15U
 
-#define GPIOE_PIN0      0U
-#define GPIOE_PIN1      1U
-#define GPIOE_PIN2      2U
-#define GPIOE_PIN3      3U
-#define GPIOE_PIN4      4U
-#define GPIOE_PIN5      5U
-#define GPIOE_PIN6      6U
-#define GPIOE_PIN7      7U
-#define GPIOE_PIN8      8U
-#define GPIOE_PIN9      9U
-#define GPIOE_PIN10     10U
-#define GPIOE_PIN11     11U
-#define GPIOE_PIN12     12U
-#define GPIOE_PIN13     13U
-#define GPIOE_PIN14     14U
-#define GPIOE_PIN15     15U
+#define GPIOE_PIN0  0U
+#define GPIOE_PIN1  1U
+#define GPIOE_PIN2  2U
+#define GPIOE_PIN3  3U
+#define GPIOE_PIN4  4U
+#define GPIOE_PIN5  5U
+#define GPIOE_PIN6  6U
+#define GPIOE_PIN7  7U
+#define GPIOE_PIN8  8U
+#define GPIOE_PIN9  9U
+#define GPIOE_PIN10 10U
+#define GPIOE_PIN11 11U
+#define GPIOE_PIN12 12U
+#define GPIOE_PIN13 13U
+#define GPIOE_PIN14 14U
+#define GPIOE_PIN15 15U
 
-#define GPIOF_PIN0      0U
-#define GPIOF_PIN1      1U
-#define GPIOF_PIN2      2U
-#define GPIOF_PIN3      3U
-#define GPIOF_PIN4      4U
-#define GPIOF_PIN5      5U
-#define GPIOF_PIN6      6U
-#define GPIOF_PIN7      7U
-#define GPIOF_PIN8      8U
-#define GPIOF_PIN9      9U
-#define GPIOF_PIN10     10U
-#define GPIOF_PIN11     11U
-#define GPIOF_PIN12     12U
-#define GPIOF_PIN13     13U
-#define GPIOF_PIN14     14U
-#define GPIOF_PIN15     15U
+#define GPIOF_PIN0  0U
+#define GPIOF_PIN1  1U
+#define GPIOF_PIN2  2U
+#define GPIOF_PIN3  3U
+#define GPIOF_PIN4  4U
+#define GPIOF_PIN5  5U
+#define GPIOF_PIN6  6U
+#define GPIOF_PIN7  7U
+#define GPIOF_PIN8  8U
+#define GPIOF_PIN9  9U
+#define GPIOF_PIN10 10U
+#define GPIOF_PIN11 11U
+#define GPIOF_PIN12 12U
+#define GPIOF_PIN13 13U
+#define GPIOF_PIN14 14U
+#define GPIOF_PIN15 15U
 
-#define GPIOG_PIN0      0U
-#define GPIOG_PIN1      1U
-#define GPIOG_PIN2      2U
-#define GPIOG_PIN3      3U
-#define GPIOG_PIN4      4U
-#define GPIOG_PIN5      5U
-#define GPIOG_PIN6      6U
-#define GPIOG_PIN7      7U
-#define GPIOG_PIN8      8U
-#define GPIOG_PIN9      9U
-#define GPIOG_PIN10     10U
-#define GPIOG_PIN11     11U
-#define GPIOG_PIN12     12U
-#define GPIOG_PIN13     13U
-#define GPIOG_PIN14     14U
-#define GPIOG_PIN15     15U
+#define GPIOG_PIN0  0U
+#define GPIOG_PIN1  1U
+#define GPIOG_PIN2  2U
+#define GPIOG_PIN3  3U
+#define GPIOG_PIN4  4U
+#define GPIOG_PIN5  5U
+#define GPIOG_PIN6  6U
+#define GPIOG_PIN7  7U
+#define GPIOG_PIN8  8U
+#define GPIOG_PIN9  9U
+#define GPIOG_PIN10 10U
+#define GPIOG_PIN11 11U
+#define GPIOG_PIN12 12U
+#define GPIOG_PIN13 13U
+#define GPIOG_PIN14 14U
+#define GPIOG_PIN15 15U
 
-#define GPIOH_OSC_IN    0U
-#define GPIOH_OSC_OUT   1U
-#define GPIOH_PIN2      2U
-#define GPIOH_PIN3      3U
-#define GPIOH_PIN4      4U
-#define GPIOH_PIN5      5U
-#define GPIOH_PIN6      6U
-#define GPIOH_PIN7      7U
-#define GPIOH_PIN8      8U
-#define GPIOH_PIN9      9U
-#define GPIOH_PIN10     10U
-#define GPIOH_PIN11     11U
-#define GPIOH_PIN12     12U
-#define GPIOH_PIN13     13U
-#define GPIOH_PIN14     14U
-#define GPIOH_PIN15     15U
+#define GPIOH_OSC_IN  0U
+#define GPIOH_OSC_OUT 1U
+#define GPIOH_PIN2    2U
+#define GPIOH_PIN3    3U
+#define GPIOH_PIN4    4U
+#define GPIOH_PIN5    5U
+#define GPIOH_PIN6    6U
+#define GPIOH_PIN7    7U
+#define GPIOH_PIN8    8U
+#define GPIOH_PIN9    9U
+#define GPIOH_PIN10   10U
+#define GPIOH_PIN11   11U
+#define GPIOH_PIN12   12U
+#define GPIOH_PIN13   13U
+#define GPIOH_PIN14   14U
+#define GPIOH_PIN15   15U
 
-#define GPIOI_PIN0      0U
-#define GPIOI_PIN1      1U
-#define GPIOI_PIN2      2U
-#define GPIOI_PIN3      3U
-#define GPIOI_PIN4      4U
-#define GPIOI_PIN5      5U
-#define GPIOI_PIN6      6U
-#define GPIOI_PIN7      7U
-#define GPIOI_PIN8      8U
-#define GPIOI_PIN9      9U
-#define GPIOI_PIN10     10U
-#define GPIOI_PIN11     11U
-#define GPIOI_PIN12     12U
-#define GPIOI_PIN13     13U
-#define GPIOI_PIN14     14U
-#define GPIOI_PIN15     15U
+#define GPIOI_PIN0  0U
+#define GPIOI_PIN1  1U
+#define GPIOI_PIN2  2U
+#define GPIOI_PIN3  3U
+#define GPIOI_PIN4  4U
+#define GPIOI_PIN5  5U
+#define GPIOI_PIN6  6U
+#define GPIOI_PIN7  7U
+#define GPIOI_PIN8  8U
+#define GPIOI_PIN9  9U
+#define GPIOI_PIN10 10U
+#define GPIOI_PIN11 11U
+#define GPIOI_PIN12 12U
+#define GPIOI_PIN13 13U
+#define GPIOI_PIN14 14U
+#define GPIOI_PIN15 15U
 
 /*
  * IO lines assignments.
@@ -231,20 +231,20 @@
 #define LINE_SWDIO       PAL_LINE(GPIOA, 13U)
 #define LINE_SWCLK       PAL_LINE(GPIOA, 14U)
 
-#define LINE_VOL_POT     PAL_LINE(GPIOB, 1U)
-#define LINE_SWO         PAL_LINE(GPIOB, 3U)
-#define LINE_I2C1_SCL    PAL_LINE(GPIOB, 6U)
-#define LINE_I2C1_SDA    PAL_LINE(GPIOB, 7U)
-#define LINE_NSPK_SD     PAL_LINE(GPIOB, 14U)
+#define LINE_VOL_POT  PAL_LINE(GPIOB, 1U)
+#define LINE_SWO      PAL_LINE(GPIOB, 3U)
+#define LINE_I2C1_SCL PAL_LINE(GPIOB, 6U)
+#define LINE_I2C1_SDA PAL_LINE(GPIOB, 7U)
+#define LINE_NSPK_SD  PAL_LINE(GPIOB, 14U)
 
-#define LINE_I2S3_MCK    PAL_LINE(GPIOC, 7U)
-#define LINE_I2S3_CK     PAL_LINE(GPIOC, 10U)
-#define LINE_I2S3_SD     PAL_LINE(GPIOC, 12U)
-#define LINE_OSC32_IN    PAL_LINE(GPIOC, 14U)
-#define LINE_OSC32_OUT   PAL_LINE(GPIOC, 15U)
+#define LINE_I2S3_MCK  PAL_LINE(GPIOC, 7U)
+#define LINE_I2S3_CK   PAL_LINE(GPIOC, 10U)
+#define LINE_I2S3_SD   PAL_LINE(GPIOC, 12U)
+#define LINE_OSC32_IN  PAL_LINE(GPIOC, 14U)
+#define LINE_OSC32_OUT PAL_LINE(GPIOC, 15U)
 
-#define LINE_OSC_IN      PAL_LINE(GPIOH, 0U)
-#define LINE_OSC_OUT     PAL_LINE(GPIOH, 1U)
+#define LINE_OSC_IN  PAL_LINE(GPIOH, 0U)
+#define LINE_OSC_OUT PAL_LINE(GPIOH, 1U)
 
 /*===========================================================================*/
 /* Driver pre-compile time settings.                                         */

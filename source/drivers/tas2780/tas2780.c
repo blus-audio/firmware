@@ -329,7 +329,7 @@ static void tas2780_ensure_active(struct tas2780_context *p_context) {
     uint8_t *p_write_buffer = p_context->write_buffer;
     uint8_t *p_read_buffer  = p_context->read_buffer;
 
-    p_write_buffer[0]       = TAS2780_MODE_CTRL_REG;
+    p_write_buffer[0] = TAS2780_MODE_CTRL_REG;
     tas2780_write(p_context, p_write_buffer, 1u);
     tas2780_read(p_context, p_read_buffer, 1u);
 
@@ -365,7 +365,7 @@ static bool tas2780_noise_gate_is_enabled(struct tas2780_context *p_context) {
     uint8_t *p_write_buffer = p_context->write_buffer;
     uint8_t *p_read_buffer  = p_context->read_buffer;
 
-    p_write_buffer[0]       = TAS2780_INT_LIVE1_REG;
+    p_write_buffer[0] = TAS2780_INT_LIVE1_REG;
     tas2780_write(p_context, p_write_buffer, 1u);
     tas2780_read(p_context, p_read_buffer, 1u);
 

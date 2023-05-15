@@ -10,7 +10,8 @@
 
 #include "usb.h"
 
-#include "audio.h"
+#include "audio_feedback.h"
+#include "audio_playback.h"
 
 /**
  * @brief Settings structure for the USB driver.
@@ -18,7 +19,7 @@
 static const USBConfig g_usb_config = {
     .event_cb          = usb_event_cb,
     .get_descriptor_cb = usb_get_descriptor_cb,
-    .requests_hook_cb  = audio_requests_hook_cb,
+    .requests_hook_cb  = audio_request_hook_cb,
     .sof_cb            = NULL,
 };
 
@@ -33,7 +34,7 @@ static USBOutEndpointState endpoint1_out_state;
 static const USBEndpointConfig endpoint1_config = {.ep_mode       = USB_EP_MODE_TYPE_ISOC,
                                                    .setup_cb      = NULL,
                                                    .in_cb         = NULL,
-                                                   .out_cb        = audio_received_cb,
+                                                   .out_cb        = audio_playback_received_cb,
                                                    .in_maxsize    = 0u,
                                                    .out_maxsize   = AUDIO_MAX_PACKET_SIZE,
                                                    .in_state      = NULL,

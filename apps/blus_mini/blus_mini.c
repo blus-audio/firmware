@@ -81,11 +81,12 @@ static THD_FUNCTION(housekeeping_thread, arg) {
         chprintf(gp_stream, "Potentiometer: %u\n",
                  g_adc_sample >> 4);  // Convert to an 8 bit number.
 
-        chprintf(gp_stream, "Volume: %li / %li dB\n", (audio_channel_get_volume(AUDIO_CHANNEL_LEFT) >> 8),
-                 (audio_channel_get_volume(AUDIO_CHANNEL_RIGHT) >> 8));
+        chprintf(gp_stream, "Volume: %li / %li dB\n",
+                 (audio_request_get_channel_volume(AUDIO_COMMON_CHANNEL_LEFT) >> 8),
+                 (audio_request_get_channel_volume(AUDIO_COMMON_CHANNEL_RIGHT) >> 8));
 
-        chprintf(gp_stream, "Audio buffer fill size: %lu / %lu (feedback %lu)\n", audio_get_fill_level(),
-                 AUDIO_BUFFER_SIZE, audio_get_feedback_value());
+        chprintf(gp_stream, "Audio buffer fill size: %lu / %lu (feedback %lu)\n", audio_playback_get_buffer_fill_size(),
+                 AUDIO_MAX_BUFFER_SIZE, audio_feedback_get_value());
 #endif
 
         chThdSleepMilliseconds(500);
@@ -112,16 +113,16 @@ void app_setup(void) {
  * Only adjust volume, when streaming over USB. Other audio sources must not be affected by USB volume adjustments.
  */
 static void app_set_volume_and_mute_state(void) {
-    if (audio_channel_is_muted(AUDIO_CHANNEL_LEFT)) {
+    if (audio_request_is_channel_muted(AUDIO_COMMON_CHANNEL_LEFT)) {
         tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_LEFT);
     } else {
-        tas2780_set_volume_all(audio_channel_get_volume(AUDIO_CHANNEL_LEFT), TAS2780_CHANNEL_LEFT);
+        tas2780_set_volume_all(audio_request_get_channel_volume(AUDIO_COMMON_CHANNEL_LEFT), TAS2780_CHANNEL_LEFT);
     }
 
-    if (audio_channel_is_muted(AUDIO_CHANNEL_RIGHT)) {
+    if (audio_request_is_channel_muted(AUDIO_COMMON_CHANNEL_RIGHT)) {
         tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_RIGHT);
     } else {
-        tas2780_set_volume_all(audio_channel_get_volume(AUDIO_CHANNEL_RIGHT), TAS2780_CHANNEL_RIGHT);
+        tas2780_set_volume_all(audio_request_get_channel_volume(AUDIO_COMMON_CHANNEL_RIGHT), TAS2780_CHANNEL_RIGHT);
     }
 }
 

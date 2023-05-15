@@ -12,14 +12,6 @@
 #define SOURCE_AUDIO_AUDIO_SETTINGS_H_
 
 /**
- * @brief The audio sample rate in Hz.
- * @note Currently supports 48 kHz and 96 kHz.
- */
-#ifndef AUDIO_SAMPLE_RATE_HZ
-#define AUDIO_SAMPLE_RATE_HZ 48000u
-#endif
-
-/**
  * @brief The resolution of an audio sample in bits.
  * @note Currently supports 16 and 32 bit.
  */
@@ -41,6 +33,11 @@
 #ifndef AUDIO_FEEDBACK_PERIOD_EXPONENT
 #define AUDIO_FEEDBACK_PERIOD_EXPONENT 0x03u
 #endif
+
+// Audio volume adjustment settings.
+#define AUDIO_MAX_VOLUME_DB          0
+#define AUDIO_MIN_VOLUME_DB          -100
+#define AUDIO_VOLUME_INCREMENT_STEPS 256  // 1 dB steps.
 
 #endif  // SOURCE_AUDIO_AUDIO_SETTINGS_H_
 

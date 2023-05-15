@@ -27,7 +27,7 @@
  *
  * @param _array The array, of which to calculate the length.
  */
-#define ARRAY_LENGTH(_array) (sizeof(_array) / sizeof(_array[0]))
+#define ARRAY_LENGTH(_array) (sizeof((_array)) / sizeof((_array)[0]))
 
 /**
  * @brief Extract a byte from a provided value at a certain index.
@@ -36,7 +36,7 @@
  * @param _value The value to extract a byte from.
  * @param _byte_index The byte index.
  */
-#define GET_BYTE(_value, _byte_index) ((_value >> (8u * _byte_index)) & 0xFFu)
+#define GET_BYTE(_value, _byte_index) (((_value) >> (8u * (_byte_index))) & 0xFFu)
 
 /**
  * @brief Swap upper and lower half-words (16 bit) of a word (32 bit).
@@ -50,7 +50,7 @@
  * @param value The value to read from.
  * @param byte_count The number of bytes. Is clamped to \a sizeof(uint32_t) .
  */
-static inline void value_to_byte_array(uint8_t* p_bytes, uint32_t value, size_t byte_count) {
+__STATIC_INLINE void value_to_byte_array(uint8_t* p_bytes, uint32_t value, size_t byte_count) {
     uint32_t clamped_byte_count = byte_count;
 
     if (clamped_byte_count > sizeof(uint32_t)) {
@@ -63,6 +63,27 @@ static inline void value_to_byte_array(uint8_t* p_bytes, uint32_t value, size_t 
 }
 
 /**
+ * @brief Write an array of bytes to a value, starting at the LSB.
+ *
+ * @param p_bytes The array of bytes to read.
+ * @param p_value A pointer of the value to write.
+ * @param byte_count The number of bytes. Is clamped to \a sizeof(uint32_t) .
+ */
+__STATIC_INLINE void byte_array_to_value(const uint8_t* p_bytes, uint32_t* p_value, size_t byte_count) {
+    uint32_t clamped_byte_count = byte_count;
+
+    if (clamped_byte_count > sizeof(uint32_t)) {
+        clamped_byte_count = sizeof(uint32_t);
+    }
+
+    *p_value = 0u;
+
+    for (size_t byte_index = 0; byte_index < clamped_byte_count; byte_index++) {
+        *p_value |= (p_bytes[byte_index] << (8u * byte_index));
+    }
+}
+
+/**
  * @brief Wrap an unsigned number to a certain maximum value.
  *
  * @param value The value to wrap.
@@ -70,7 +91,9 @@ static inline void value_to_byte_array(uint8_t* p_bytes, uint32_t value, size_t 
  * value itself wraps back to zero.
  * @return size_t The wrapped value.
  */
-static inline size_t wrap_unsigned(size_t value, size_t max_value) {
+__STATIC_INLINE size_t wrap_unsigned(size_t value, size_t max_value) {
+    chDbgAssert(max_value > 0, "Cannot wrap to a value of zero.");
+
     size_t temporary_value = value;
 
     while (temporary_value >= max_value) {
@@ -90,7 +113,7 @@ static inline size_t wrap_unsigned(size_t value, size_t max_value) {
  * @param max_value The maximum value, at which wrapping occurs. See \a wrap_unsigned() .
  * @return size_t The circular difference.
  */
-static inline size_t subtract_circular_unsigned(size_t minuend, size_t subtrahend, size_t max_value) {
+__STATIC_INLINE size_t subtract_circular_unsigned(size_t minuend, size_t subtrahend, size_t max_value) {
     if (subtrahend > minuend) {
         return wrap_unsigned(minuend + max_value - subtrahend, max_value);
     } else {
@@ -106,7 +129,7 @@ static inline size_t subtract_circular_unsigned(size_t minuend, size_t subtrahen
  * @param max_value The maximum value, at which wrapping occurs. See \a wrap_unsigned() .
  * @return size_t The wrapped sum.
  */
-static inline size_t add_circular_unsigned(size_t summand_a, size_t summand_b, size_t max_value) {
+__STATIC_INLINE size_t add_circular_unsigned(size_t summand_a, size_t summand_b, size_t max_value) {
     return wrap_unsigned(summand_a + summand_b, max_value);
 }
 
