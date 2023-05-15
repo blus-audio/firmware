@@ -9,6 +9,8 @@
  * @{
  */
 
+#include "audio_feedback.h"
+
 #include <string.h>
 
 #include "audio_playback.h"
@@ -100,18 +102,6 @@ struct audio_feedback {
     uint32_t last_counter_value;                             ///< The counter value at the time of the
                                                              ///< previous SOF interrupt.
 } g_feedback;
-
-/**
- * @brief Initialize the audio feedback structure.
- */
-void audio_feedback_init(void) {
-    g_feedback.correction_state   = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
-    g_feedback.b_is_first_sof     = true;
-    g_feedback.b_is_valid         = false;
-    g_feedback.sof_package_count  = 0u;
-    g_feedback.last_counter_value = 0u;
-    g_feedback.value              = 0u;
-}
 
 /**
  * @brief Get the current feedback value.
@@ -328,6 +318,18 @@ void audio_feedback_cb(USBDriver *usbp, usbep_t ep) {
     }
 
     chSysUnlockFromISR();
+}
+
+/**
+ * @brief Initialize the audio feedback structure.
+ */
+void audio_feedback_init(void) {
+    g_feedback.correction_state   = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
+    g_feedback.b_is_first_sof     = true;
+    g_feedback.b_is_valid         = false;
+    g_feedback.sof_package_count  = 0u;
+    g_feedback.last_counter_value = 0u;
+    g_feedback.value              = 0u;
 }
 
 /**

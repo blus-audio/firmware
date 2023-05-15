@@ -307,7 +307,7 @@ static bool audio_request_handle_class_interface(USBDriver *usbp) {
 static bool audio_request_handle_standard_interface(USBDriver *usbp) {
     switch (g_request.request) {
         case USB_REQ_SET_INTERFACE:
-            // Switch between operational and zero-bandwith alternate modes.
+            // Switch between operational and zero-bandwidth alternate modes.
             if (g_request.index == AUDIO_STREAMING_INTERFACE) {
                 if (g_request.value == AUDIO_REQUEST_ALTERNATE_SETTING_OPERATIONAL) {
                     audio_playback_start_streaming(usbp);
