@@ -15,17 +15,10 @@
 
 #include "audio_playback.h"
 #include "common.h"
+#include "usb_descriptors.h"
 
 // Control selectors
 #define AUDIO_REQUEST_CS_SAMPLING_FREQ 0x01u
-
-/**
- * @brief Alternate settings for the audio playback endpoint.
- */
-enum AUDIO_REQUEST_ALTERNATE_SETTING {
-    AUDIO_REQUEST_ALTERNATE_SETTING_ZERO_BANDWIDTH = 0x00u,  ///< The zero-bandwidth setting (idle).
-    AUDIO_REQUEST_ALTERNATE_SETTING_OPERATIONAL    = 0x01u   ///< The operational setting (active).
-};
 
 /**
  * @brief Supported control requests from the USB Audio Class.
@@ -309,7 +302,7 @@ static bool audio_request_handle_standard_interface(USBDriver *usbp) {
         case USB_REQ_SET_INTERFACE:
             // Switch between operational and zero-bandwidth alternate modes.
             if (g_request.index == AUDIO_STREAMING_INTERFACE) {
-                if (g_request.value == AUDIO_REQUEST_ALTERNATE_SETTING_OPERATIONAL) {
+                if (g_request.value == USB_DESC_INTERFACE_ALT_SETTING_OPERATIONAL) {
                     audio_playback_start_streaming(usbp);
                 } else {
                     audio_playback_stop_streaming(usbp);

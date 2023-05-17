@@ -16,6 +16,31 @@
 #include "hal.h"
 
 /**
+ * @brief The current version of the USB specification (1.1).
+ */
+#define USB_DESC_SPEC_VERSION 0x0110u
+
+/**
+ * @brief The current version of the ADC specification (1.0).
+ */
+#define USB_DESC_ADC_VERSION 0x0100u
+
+/**
+ * @brief The current version of the USB device (1.0).
+ */
+#define USB_DESC_DEVICE_VERSION 0x0100u
+
+/**
+ * @brief The pidcodes vendor ID.
+ */
+#define USB_DESC_VID 0x1209u
+
+/**
+ * @brief The pidcodes product ID.
+ */
+#define USB_DESC_PID 0xAF01u
+
+/**
  * @brief Maximum size for a packet on the in-endpoint.
  */
 #define USB_DESC_MAX_IN_SIZE 4u
@@ -25,32 +50,97 @@
  */
 #define USB_DESC_FS_BINTERVAL 0x01u
 
-/**
- * @brief Terminal type: Loudspeaker.
- */
-#define USB_DESC_TERMINAL_TYPE 0x0301u
+#define USB_DESC_ENDPOINT_COUNT_ZERO_BANDWIDTH 0u
+#define USB_DESC_ENDPOINT_COUNT_OPERATIONAL    2u
 
-#define USB_DESC_INTERFACE_PROTOCOL_UNDEFINED       0x00u
-#define USB_DESC_INTERFACE_CLASS_AUDIO              0x01u
-#define USB_DESC_INTERFACE_SUBCLASS_AUDIO_CONTROL   0x01u
-#define USB_DESC_INTERFACE_SUBCLASS_AUDIO_STREAMING 0x02u
+/**
+ * @brief USB terminal types.
+ */
+enum USB_DESC_TERMINAL_TYPE {
+    USB_DESC_TERMINAL_TYPE_INPUT     = 0x02u,    ///< An input terminal.
+    USB_DESC_TERMINAL_TYPE_OUTPUT    = 0x03u,    ///< An output terminal.
+    USB_DESC_TERMINAL_TYPE_UNDEFINED = 0x0100u,  ///< An undefined terminal type.
+    USB_DESC_TERMINAL_TYPE_STREAMING = 0x0101u,  ///< A Terminal dealing with a signal carried over an endpoint in an
+                                                 ///< AudioStreaming interface. The AudioStreaming interface descriptor
+                                                 ///< points to the associated Terminal through the bTerminalLink field.
+    USB_DESC_TERMINAL_TYPE_VENDOR_SPECIFIC =
+        0x01FFu,  ///< A Terminal dealing with a signal carried over a vendor-specific interface. The vendor-specific
+                  ///< interface descriptor must contain a field that references the Terminal.
+};
+
+/**
+ * @brief USB output terminal types.
+ */
+enum USB_DESC_OUTPUT_TERMINAL_TYPE {
+    USB_DESC_OUTPUT_TERMINAL_TYPE_SPEAKER                    = 0x0301u,  ///< A generic speaker.
+    USB_DESC_OUTPUT_TERMINAL_TYPE_HEADPHONES                 = 0x0302u,  ///< Head mounted audio output.
+    USB_DESC_OUTPUT_TERMINAL_TYPE_HEAD_MOUNTED_DISPLAY_AUDIO = 0x0303u,  ///< Part of a VR head mount.
+    USB_DESC_OUTPUT_TERMINAL_TYPE_DESKTOP_SPEAKER            = 0x0304u,  ///< Small desk speaker.
+    USB_DESC_OUTPUT_TERMINAL_TYPE_ROOM_SPEAKER               = 0x0305u,  ///< Larger room speaker.
+    USB_DESC_OUTPUT_TERMINAL_TYPE_COMMUNICATION_SPEAKER      = 0x0306u,  ///< Speaker for voice communication.
+    USB_DESC_OUTPUT_TERMINAL_TYPE_LOW_FREQUENCY_SPEAKER      = 0x0307u   ///< Speaker for low frequency effects.
+};
+
+/**
+ * @brief Channel configuration bit masks.
+ */
+enum USB_DESC_CHANNEL_CONFIG {
+    USB_DESC_CHANNEL_CONFIG_NONE            = 0x0000u,
+    USB_DESC_CHANNEL_CONFIG_LEFT_FRONT      = 0x0001u,
+    USB_DESC_CHANNEL_CONFIG_RIGHT_FRONT     = 0x0002u,
+    USB_DESC_CHANNEL_CONFIG_CENTER_FRONT    = 0x0004u,
+    USB_DESC_CHANNEL_CONFIG_LFE             = 0x0008u,
+    USB_DESC_CHANNEL_CONFIG_LEFT_SURROUND   = 0x0010u,
+    USB_DESC_CHANNEL_CONFIG_RIGHT_SURROUND  = 0x0020u,
+    USB_DESC_CHANNEL_CONFIG_LEFT_OF_CENTER  = 0x0040u,
+    USB_DESC_CHANNEL_CONFIG_RIGHT_OF_CENTER = 0x0080u,
+    USB_DESC_CHANNEL_CONFIG_SURROUND        = 0x0100u,
+    USB_DESC_CHANNEL_CONFIG_SIDE_LEFT       = 0x0200u,
+    USB_DESC_CHANNEL_CONFIG_SIDE_RIGHT      = 0x0400u,
+    USB_DESC_CHANNEL_CONFIG_TOP             = 0x0800u,
+};
+
+/**
+ * @brief Feature unit control bit masks.
+ */
+enum USB_DESC_FU_CONTROLS {
+    USB_DESC_FU_CONTROLS_NONE              = 0X0000U,
+    USB_DESC_FU_CONTROLS_MUTE              = 0X0001U,
+    USB_DESC_FU_CONTROLS_VOLUME            = 0X0002u,
+    USB_DESC_FU_CONTROLS_BASS              = 0X0004U,
+    USB_DESC_FU_CONTROLS_MID               = 0X0008U,
+    USB_DESC_FU_CONTROLS_TREBLE            = 0X0010u,
+    USB_DESC_FU_CONTROLS_GRAPHIC_EQUALIZER = 0x0020u,
+    USB_DESC_FU_CONTROLS_AUTOMATIC_GAIN    = 0x0040u,
+    USB_DESC_FU_CONTROLS_DELAY             = 0x0080u,
+    USB_DESC_FU_CONTROLS_BASS_BOOST        = 0x0100u,
+    USB_DESC_FU_CONTROLS_LOUDNESS          = 0x0200u,
+};
+
+// USB interface definitions.
+#define USB_DESC_INTERFACE_CLASS_AUDIO                    0x01u
+#define USB_DESC_INTERFACE_CLASS_AUDIO_SUBCLASS_CONTROL   0x01u
+#define USB_DESC_INTERFACE_CLASS_AUDIO_SUBCLASS_STREAMING 0x02u
 
 #define USB_DESC_INTERFACE_ALT_SETTING_ZERO_BW     0x00u
 #define USB_DESC_INTERFACE_ALT_SETTING_OPERATIONAL 0x01u
 
-static const uint8_t audio_device_descriptor_data[18] = {
-    USB_DESC_DEVICE(0x0110u,  // bcdUSB (1.1).
-                    0x00u,    // bDeviceClass (None).
-                    0x00u,    // bDeviceSubClass.
-                    0x00u,    // bDeviceProtocol.
-                    0x40u,    // bMaxPacketSize.
-                    0x1209u,  // idVendor.
-                    0xAF01u,  // idProduct.
-                    0x0001u,  // bcdDevice.
-                    1u,       // iManufacturer.
-                    2u,       // iProduct.
-                    3u,       // iSerialNumber.
-                    1u)       // bNumConfigurations.
+#define USB_DESC_INTERFACE_NONE               0x00u
+#define USB_DESC_INTERFACE_PROTOCOL_UNDEFINED 0x00u
+
+static const uint8_t audio_device_descriptor_data[18u] = {
+    USB_DESC_DEVICE(USB_DESC_SPEC_VERSION,    // bcdUSB (1.1).
+                    0x00u,                    // bDeviceClass (None).
+                    0x00u,                    // bDeviceSubClass.
+                    0x00u,                    // bDeviceProtocol.
+                    0x40u,                    // bMaxPacketSize.
+                    USB_DESC_VID,             // idVendor.
+                    USB_DESC_PID,             // idProduct.
+                    USB_DESC_DEVICE_VERSION,  // bcdDevice.
+                    1u,                       // iManufacturer.
+                    2u,                       // iProduct.
+                    3u,                       // iSerialNumber.
+                    1u)                       // bNumConfigurations.
 };
 
 // Device Descriptor wrapper.
@@ -70,74 +160,75 @@ static const uint8_t audio_configuration_descriptor_data[USB_DESCRIPTORS_TOTAL_L
                            50u),                          // bMaxPower (100mA).
 
     // Standard Audio Control Interface Descriptor (UAC 4.3.1)
-    USB_DESC_INTERFACE(AUDIO_CONTROL_INTERFACE,                    // bInterfaceNumber.
-                       0x00u,                                      // bAlternateSetting.
-                       0x00u,                                      // bNumEndpoints.
-                       USB_DESC_INTERFACE_CLASS_AUDIO,             // bInterfaceClass.
-                       USB_DESC_INTERFACE_SUBCLASS_AUDIO_CONTROL,  // bInterfaceSubClass.
-                       0x00u,                                      // bInterfaceProtocol (none).
-                       0u),                                        // iInterface.
+    USB_DESC_INTERFACE(AUDIO_CONTROL_INTERFACE,                          // bInterfaceNumber.
+                       0x00u,                                            // bAlternateSetting.
+                       0x00u,                                            // bNumEndpoints.
+                       USB_DESC_INTERFACE_CLASS_AUDIO,                   // bInterfaceClass.
+                       USB_DESC_INTERFACE_CLASS_AUDIO_SUBCLASS_CONTROL,  // bInterfaceSubClass.
+                       0x00u,                                            // bInterfaceProtocol (none).
+                       0u),                                              // iInterface.
 
     // Class-specific AC Interface Descriptor (UAC 4.3.2)
     USB_DESC_BYTE(9u),                         // bLength.
     USB_DESC_BYTE(0x24u),                      // bDescriptorType (CS_INTERFACE).
     USB_DESC_BYTE(0x01u),                      // bDescriptorSubtype (Header).
-    USB_DESC_BCD(0x0100u),                     // bcdADC.
+    USB_DESC_BCD(USB_DESC_ADC_VERSION),        // bcdADC.
     USB_DESC_WORD(43u),                        // wTotalLength.
     USB_DESC_BYTE(0x01u),                      // bInCollection (1 streaming interface).
     USB_DESC_BYTE(AUDIO_STREAMING_INTERFACE),  // baInterfaceNr.
 
     // Input Terminal Descriptor (UAC 4.3.2.1)
-    USB_DESC_BYTE(12u),                  // bLength.
-    USB_DESC_BYTE(0x24u),                // bDescriptorType.
-    USB_DESC_BYTE(0x02u),                // bDescriptorSubtype (Input Terminal).
-    USB_DESC_BYTE(AUDIO_INPUT_UNIT_ID),  // bTerminalID.
-    USB_DESC_WORD(0x0101u),              // wTerminalType (USB streaming).
-    USB_DESC_BYTE(0x00u),                // bAssocTerminal (none).
-    USB_DESC_BYTE(AUDIO_CHANNEL_COUNT),  // bNrChannels.
-    USB_DESC_WORD(0x0003u),              // wChannelConfig (left, right).
-    USB_DESC_BYTE(0x00u),                // iChannelNames (none).
-    USB_DESC_BYTE(0x00u),                // iTerminal (none).
+    USB_DESC_BYTE(12u),                               // bLength.
+    USB_DESC_BYTE(0x24u),                             // bDescriptorType.
+    USB_DESC_BYTE(USB_DESC_TERMINAL_TYPE_INPUT),      // bDescriptorSubtype.
+    USB_DESC_BYTE(AUDIO_INPUT_UNIT_ID),               // bTerminalID.
+    USB_DESC_WORD(USB_DESC_TERMINAL_TYPE_STREAMING),  // wTerminalType.
+    USB_DESC_BYTE(0x00u),                             // bAssocTerminal (none).
+    USB_DESC_BYTE(AUDIO_CHANNEL_COUNT),               // bNrChannels.
+    USB_DESC_WORD(USB_DESC_CHANNEL_CONFIG_RIGHT_FRONT |
+                  USB_DESC_CHANNEL_CONFIG_LEFT_FRONT),  // wChannelConfig (left, right).
+    USB_DESC_BYTE(0x00u),                               // iChannelNames (none).
+    USB_DESC_BYTE(0x00u),                               // iTerminal (none).
 
     // Feature Unit Descriptor (UAC 4.3.2.5)
-    USB_DESC_BYTE(13u),                     // bLength.
-    USB_DESC_BYTE(0x24u),                   // bDescriptorType.
-    USB_DESC_BYTE(0x06u),                   // bDescriptorSubtype (Feature Unit).
-    USB_DESC_BYTE(AUDIO_FUNCTION_UNIT_ID),  // bUnitID.
-    USB_DESC_BYTE(AUDIO_INPUT_UNIT_ID),     // bSourceID.
-    USB_DESC_BYTE(AUDIO_CHANNEL_COUNT),     // bControlSize.
-    USB_DESC_WORD(0x0000u),                 // Master controls.
-    USB_DESC_WORD(0x0003u),                 // Channel 0 controls
-    USB_DESC_WORD(0x0003u),                 // Channel 1 controls
-    USB_DESC_BYTE(0x00u),                   // iFeature (none)
+    USB_DESC_BYTE(13u),                                                      // bLength.
+    USB_DESC_BYTE(0x24u),                                                    // bDescriptorType.
+    USB_DESC_BYTE(0x06u),                                                    // bDescriptorSubtype (Feature Unit).
+    USB_DESC_BYTE(AUDIO_FUNCTION_UNIT_ID),                                   // bUnitID.
+    USB_DESC_BYTE(AUDIO_INPUT_UNIT_ID),                                      // bSourceID.
+    USB_DESC_BYTE(AUDIO_CHANNEL_COUNT),                                      // bControlSize.
+    USB_DESC_WORD(USB_DESC_FU_CONTROLS_NONE),                                // Master controls.
+    USB_DESC_WORD(USB_DESC_FU_CONTROLS_MUTE | USB_DESC_FU_CONTROLS_VOLUME),  // Channel 0 controls
+    USB_DESC_WORD(USB_DESC_FU_CONTROLS_MUTE | USB_DESC_FU_CONTROLS_VOLUME),  // Channel 1 controls
+    USB_DESC_BYTE(0x00u),                                                    // iFeature (none)
 
     // Output Terminal Descriptor (UAC 4.3.2.2)
-    USB_DESC_BYTE(9u),                      // bLength.
-    USB_DESC_BYTE(0x24u),                   // bDescriptorType.
-    USB_DESC_BYTE(0x03u),                   // bDescriptorSubtype (Output Terminal).
-    USB_DESC_BYTE(AUDIO_OUTPUT_UNIT_ID),    // bTerminalID.
-    USB_DESC_WORD(USB_DESC_TERMINAL_TYPE),  // wTerminalType.
-    USB_DESC_BYTE(0x00u),                   // bAssocTerminal (none).
-    USB_DESC_BYTE(AUDIO_FUNCTION_UNIT_ID),  // bSourceID.
-    USB_DESC_BYTE(0x00u),                   // iTerminal (none).
+    USB_DESC_BYTE(9u),                                     // bLength.
+    USB_DESC_BYTE(0x24u),                                  // bDescriptorType.
+    USB_DESC_BYTE(USB_DESC_TERMINAL_TYPE_OUTPUT),          // bDescriptorSubtype.
+    USB_DESC_BYTE(AUDIO_OUTPUT_UNIT_ID),                   // bTerminalID.
+    USB_DESC_WORD(USB_DESC_OUTPUT_TERMINAL_TYPE_SPEAKER),  // wTerminalType.
+    USB_DESC_BYTE(0x00u),                                  // bAssocTerminal (none).
+    USB_DESC_BYTE(AUDIO_FUNCTION_UNIT_ID),                 // bSourceID.
+    USB_DESC_BYTE(0x00u),                                  // iTerminal (none).
 
     // Standard AS Interface Descriptor (zero-bandwidth) (UAC 4.5.1)
-    USB_DESC_INTERFACE(AUDIO_STREAMING_INTERFACE,                    // bInterfaceNumber.
-                       USB_DESC_INTERFACE_ALT_SETTING_ZERO_BW,       // bAlternateSetting.
-                       0x00u,                                        // bNumEndpoints.
-                       USB_DESC_INTERFACE_CLASS_AUDIO,               // bInterfaceClass.
-                       USB_DESC_INTERFACE_SUBCLASS_AUDIO_STREAMING,  // bInterfaceSubClass.
-                       USB_DESC_INTERFACE_PROTOCOL_UNDEFINED,        // bInterfaceProtocol.
-                       0u),                                          // iInterface.
+    USB_DESC_INTERFACE(AUDIO_STREAMING_INTERFACE,                          // bInterfaceNumber.
+                       USB_DESC_INTERFACE_ALT_SETTING_ZERO_BW,             // bAlternateSetting.
+                       USB_DESC_ENDPOINT_COUNT_ZERO_BANDWIDTH,             // bNumEndpoints.
+                       USB_DESC_INTERFACE_CLASS_AUDIO,                     // bInterfaceClass.
+                       USB_DESC_INTERFACE_CLASS_AUDIO_SUBCLASS_STREAMING,  // bInterfaceSubClass.
+                       USB_DESC_INTERFACE_PROTOCOL_UNDEFINED,              // bInterfaceProtocol.
+                       USB_DESC_INTERFACE_NONE),                           // iInterface.
 
     // Standard AS Interface Descriptor (operational) (UAC 4.5.1)
-    USB_DESC_INTERFACE(AUDIO_STREAMING_INTERFACE,                    // bInterfaceNumber.
-                       USB_DESC_INTERFACE_ALT_SETTING_OPERATIONAL,   // bAlternateSetting.
-                       0x02u,                                        // bNumEndpoints.
-                       USB_DESC_INTERFACE_CLASS_AUDIO,               // bInterfaceClass.
-                       USB_DESC_INTERFACE_SUBCLASS_AUDIO_STREAMING,  // bInterfaceSubClass.
-                       USB_DESC_INTERFACE_PROTOCOL_UNDEFINED,        // bInterfaceProtocol.
-                       0u),                                          // iInterface.
+    USB_DESC_INTERFACE(AUDIO_STREAMING_INTERFACE,                          // bInterfaceNumber.
+                       USB_DESC_INTERFACE_ALT_SETTING_OPERATIONAL,         // bAlternateSetting.
+                       USB_DESC_ENDPOINT_COUNT_OPERATIONAL,                // bNumEndpoints.
+                       USB_DESC_INTERFACE_CLASS_AUDIO,                     // bInterfaceClass.
+                       USB_DESC_INTERFACE_CLASS_AUDIO_SUBCLASS_STREAMING,  // bInterfaceSubClass.
+                       USB_DESC_INTERFACE_PROTOCOL_UNDEFINED,              // bInterfaceProtocol.
+                       USB_DESC_INTERFACE_NONE),                           // iInterface.
 
     // Class-specific AS Interface Descriptor (UAC 4.5.2)
     USB_DESC_BYTE(7u),                   // bLength.
