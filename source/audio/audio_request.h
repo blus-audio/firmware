@@ -3,7 +3,7 @@
 /**
  * @file
  * @brief   Audio request module.
- * @details Contains functionality for handling UAC 1.0 audio requests.
+ * @details Contains functionality for handling UAC v1 audio requests.
  *
  * @addtogroup audio
  * @{

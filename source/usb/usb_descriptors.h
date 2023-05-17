@@ -2,7 +2,7 @@
 
 /**
  * @file
- * @brief   USB descriptors for UAC 1.0 functionality.
+ * @brief   USB descriptors for UAC v1 functionality.
  *
  * @addtogroup usb
  * @{

@@ -3,7 +3,7 @@
 /**
  * @file
  * @brief   Audio request module.
- * @details Contains functionality for handling UAC 1.0 audio requests.
+ * @details Contains functionality for handling UAC v1 audio requests.
  *
  * @addtogroup audio
  * @{
@@ -174,7 +174,7 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
     uint8_t channel_index = GET_BYTE(g_request.value, 0u);
     uint8_t control_unit  = GET_BYTE(g_request.value, 1u);
 
-    // In UAC 1.0, the volume level is given as an int16 value. An increment of 1 bit equals 1/256 dB of volume.
+    // In UAC v1, the volume level is given as an int16 value. An increment of 1 bit equals 1/256 dB of volume.
     // Do not change, this is defined by the standard.
     const int16_t AUDIO_VOLUME_STEPS_PER_DB = 256;
 

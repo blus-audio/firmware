@@ -2,7 +2,7 @@
 
 # USB-I2S audio bridge
 
-This is a firmware project that mainly implements a UAC 1.0 compliant sound card.
+This is a firmware project that mainly implements a UAC v1 compliant sound card.
 
 The software is designed to run on the [STM32F401](https://www.st.com/en/microcontrollers-microprocessors/stm32f401.html) - in particular the cheaply available STM32F401RB, which has the lowest amount of flash memory and RAM of all STM32F401 class devices.
 Thus, this firmware also runs on any of the larger variants (STM32F401RC, STM32F401RD, STM32F401RE).
@@ -102,5 +102,5 @@ In the implementation of this firmware, a hardware timer is clocked by the I2S m
 
 This feedback mechanism is a control loop, where the sound card (USB device) is a mere *sensor* and the host machine (USB host) is the *controller*.
 
-For more detail, see [UAC 1.0 specification](./doc/audio10.pdf). The audio feedback mechanism is implemented as described in *3.7.2.2 Isochronous Synch Endpoint* (p. 32).
+For more detail, see [UAC v1 specification](./doc/audio10.pdf). The audio feedback mechanism is implemented as described in *3.7.2.2 Isochronous Synch Endpoint* (p. 32).
 An extended description is found in the [general USB 2.0 specification](./doc/usb_20.pdf) in *5.12.4.2 Feedback* (p.75). Information about [supported audio formats](./doc/frmts10.pdf) and [terminal types](./doc/termt10.pdf) is also available.
