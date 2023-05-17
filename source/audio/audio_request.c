@@ -182,14 +182,14 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
         case AUDIO_REQUEST_SET_MAX:
         case AUDIO_REQUEST_SET_MIN:
         case AUDIO_REQUEST_SET_RES:
-            if (control_unit == UAC_FU_VOLUME_CONTROL) {
+            if (control_unit == USB_DESC_FU_CONTROLS_VOLUME) {
                 usbSetupTransfer(usbp, p_data, g_request.length, NULL);
                 return true;
             }
             break;
 
         case AUDIO_REQUEST_GET_MAX:
-            if (control_unit == UAC_FU_VOLUME_CONTROL) {
+            if (control_unit == USB_DESC_FU_CONTROLS_VOLUME) {
                 for (size_t i = 0; i < g_request.length; i++) {
                     ((int16_t *)p_data)[i] = (int16_t)AUDIO_MAX_VOLUME_DB * AUDIO_VOLUME_STEPS_PER_DB;
                 }
@@ -199,7 +199,7 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
             break;
 
         case AUDIO_REQUEST_GET_MIN:
-            if (control_unit == UAC_FU_VOLUME_CONTROL) {
+            if (control_unit == USB_DESC_FU_CONTROLS_VOLUME) {
                 for (size_t i = 0; i < g_request.length; i++) {
                     ((int16_t *)p_data)[i] = (int16_t)AUDIO_MIN_VOLUME_DB * AUDIO_VOLUME_STEPS_PER_DB;
                 }
@@ -209,7 +209,7 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
             break;
 
         case AUDIO_REQUEST_GET_RES:
-            if (control_unit == UAC_FU_VOLUME_CONTROL) {
+            if (control_unit == USB_DESC_FU_CONTROLS_VOLUME) {
                 for (size_t i = 0; i < g_request.length; i++) {
                     ((int16_t *)p_data)[i] = (int16_t)AUDIO_VOLUME_INCREMENT_STEPS;
                 }
@@ -219,7 +219,7 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
             break;
 
         case AUDIO_REQUEST_GET_CUR:
-            if (control_unit == UAC_FU_MUTE_CONTROL) {
+            if (control_unit == USB_DESC_FU_CONTROLS_MUTE) {
                 if (channel_index == AUDIO_COMMON_CHANNEL_MASTER) {
                     uint8_t value[3] = {0, g_controls.volume.b_channel_mute_states[AUDIO_COMMON_CHANNEL_LEFT],
                                         g_controls.volume.b_channel_mute_states[AUDIO_COMMON_CHANNEL_RIGHT]};
@@ -232,7 +232,7 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
                     return true;
                 }
                 return true;
-            } else if (control_unit == UAC_FU_VOLUME_CONTROL) {
+            } else if (control_unit == USB_DESC_FU_CONTROLS_VOLUME) {
                 if (channel_index == AUDIO_COMMON_CHANNEL_MASTER) {
                     int16_t value[3] = {0, g_controls.volume.channel_volume_levels_8q8_db[AUDIO_COMMON_CHANNEL_LEFT],
                                         g_controls.volume.channel_volume_levels_8q8_db[AUDIO_COMMON_CHANNEL_RIGHT]};
@@ -249,11 +249,11 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
             break;
 
         case AUDIO_REQUEST_SET_CUR:
-            if (control_unit == UAC_FU_MUTE_CONTROL) {
+            if (control_unit == USB_DESC_FU_CONTROLS_MUTE) {
                 g_controls.volume.channel_index = channel_index;
                 usbSetupTransfer(usbp, p_data, g_request.length, audio_request_update_mute_states);
                 return true;
-            } else if (control_unit == UAC_FU_VOLUME_CONTROL) {
+            } else if (control_unit == USB_DESC_FU_CONTROLS_VOLUME) {
                 g_controls.volume.channel_index = channel_index;
                 usbSetupTransfer(usbp, p_data, g_request.length, audio_request_update_volumes);
                 return true;
@@ -276,12 +276,12 @@ static bool audio_request_handle_class_interface(USBDriver *usbp) {
     uint8_t interface = GET_BYTE(g_request.index, 0u);
     uint8_t entity    = GET_BYTE(g_request.index, 1u);
 
-    if (interface != AUDIO_CONTROL_INTERFACE) {
+    if (interface != USB_DESC_INTERFACE_CONTROL) {
         // Only requests to audio control interface are supported.
         return false;
     }
 
-    if (entity == AUDIO_FUNCTION_UNIT_ID) {
+    if (entity == USB_DESC_UNIT_FUNCTION) {
         // Handle requests to the audio function unit
         return audio_request_handle_class_interface_fu(usbp);
     }
@@ -301,7 +301,7 @@ static bool audio_request_handle_standard_interface(USBDriver *usbp) {
     switch (g_request.request) {
         case USB_REQ_SET_INTERFACE:
             // Switch between operational and zero-bandwidth alternate modes.
-            if (g_request.index == AUDIO_STREAMING_INTERFACE) {
+            if (g_request.index == USB_DESC_INTERFACE_STREAMING) {
                 if (g_request.value == USB_DESC_INTERFACE_ALT_SETTING_OPERATIONAL) {
                     audio_playback_start_streaming(usbp);
                 } else {

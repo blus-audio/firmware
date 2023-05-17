@@ -75,8 +75,8 @@ void usb_event_cb(USBDriver *usbp, usbevent_t event) {
         case USB_EVENT_CONFIGURED:
             // Enables configured endpoints.
             chSysLockFromISR();
-            usbInitEndpointI(usbp, AUDIO_PLAYBACK_ENDPOINT, &endpoint1_config);
-            usbInitEndpointI(usbp, AUDIO_FEEDBACK_ENDPOINT, &endpoint2_config);
+            usbInitEndpointI(usbp, USB_DESC_ENDPOINT_PLAYBACK, &endpoint1_config);
+            usbInitEndpointI(usbp, USB_DESC_ENDPOINT_FEEDBACK, &endpoint2_config);
             chSysUnlockFromISR();
             return;
 

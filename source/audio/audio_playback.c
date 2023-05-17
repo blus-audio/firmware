@@ -13,6 +13,8 @@
 
 #include <string.h>
 
+#include "usb_descriptors.h"
+
 static void audio_playback_reset(void);
 
 /**
@@ -266,10 +268,10 @@ void audio_playback_start_streaming(USBDriver *usbp) {
     chSysLockFromISR();
 
     // Feedback yet unknown, transmit empty packet.
-    usbStartTransmitI(usbp, AUDIO_FEEDBACK_ENDPOINT, NULL, 0);
+    usbStartTransmitI(usbp, USB_DESC_ENDPOINT_FEEDBACK, NULL, 0);
 
     // Initial audio data reception.
-    usbStartReceiveI(usbp, AUDIO_PLAYBACK_ENDPOINT, (uint8_t *)&g_playback.buffer[g_playback.buffer_write_offset],
+    usbStartReceiveI(usbp, USB_DESC_ENDPOINT_PLAYBACK, (uint8_t *)&g_playback.buffer[g_playback.buffer_write_offset],
                      AUDIO_MAX_PACKET_SIZE);
 
     chSysUnlockFromISR();

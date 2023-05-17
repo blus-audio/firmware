@@ -35,11 +35,15 @@ enum AUDIO_COMMON_MSG {
     AUDIO_COMMON_MSG_RESET_VOLUME,     ///< Reset volume levels.
 };
 
-// Supported audio sample rates.
-#define AUDIO_SAMPLE_RATE_48_KHZ     48000u
-#define AUDIO_SAMPLE_RATE_96_KHZ     96000u
-#define AUDIO_DEFAULT_SAMPLE_RATE_HZ AUDIO_SAMPLE_RATE_48_KHZ
-#define AUDIO_MAX_SAMPLE_RATE_HZ     AUDIO_SAMPLE_RATE_96_KHZ
+/**
+ * @brief Supported audio sample rates.
+ */
+enum AUDIO_SAMPLE_RATE {
+    AUDIO_SAMPLE_RATE_48_KHZ     = 48000u,
+    AUDIO_SAMPLE_RATE_96_KHZ     = 96000u,
+    AUDIO_DEFAULT_SAMPLE_RATE_HZ = AUDIO_SAMPLE_RATE_48_KHZ,
+    AUDIO_MAX_SAMPLE_RATE_HZ     = AUDIO_SAMPLE_RATE_96_KHZ,
+};
 
 /**
  * @brief The number of audio channels.
@@ -66,29 +70,6 @@ enum AUDIO_COMMON_MSG {
  * @brief The size of the audio buffer in bytes.
  */
 #define AUDIO_MAX_BUFFER_SIZE AUDIO_COMMON_GET_BUFFER_SIZE(AUDIO_MAX_PACKET_SIZE, AUDIO_BUFFER_PACKET_COUNT)
-
-// Endpoint numbers.
-#define AUDIO_PLAYBACK_ENDPOINT 0x01u
-#define AUDIO_FEEDBACK_ENDPOINT 0x02u
-
-// Interface numbers.
-#define AUDIO_CONTROL_INTERFACE   0u
-#define AUDIO_STREAMING_INTERFACE 1u
-
-// Functional unit numbers.
-#define AUDIO_INPUT_UNIT_ID    1u
-#define AUDIO_FUNCTION_UNIT_ID 2u
-#define AUDIO_OUTPUT_UNIT_ID   3u
-//
-// Functional unit controls.
-#define UAC_FU_MUTE_CONTROL   0x01u
-#define UAC_FU_VOLUME_CONTROL 0x02u
-
-// Endpoint controls.
-#define UAC_EU_SAMPLING_FREQ_CONTROL 0x01u
-
-// Definitions that are regularly reused.
-#define AUDIO_BYTE_MASK 0xFFu
 
 /**
  * @brief Get the sample size, from the resolution in bit.
