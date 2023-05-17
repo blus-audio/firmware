@@ -142,21 +142,19 @@ static void audio_send_app_message(msg_t message) {
     }
 }
 
+/**
+ * @brief Set up a new sample rate.
+ * @details Configures the \a audio_playback module, as well as the I2S peripheral.
+ */
 static void audio_update_sample_rate(void) {
+    chDbgAssert(!audio_playback_is_enabled(), "Playback must not be enabled while switching sample rates.");
+
     uint32_t sample_rate_hz = audio_request_get_sample_rate_hz();
     audio_playback_set_sample_rate(sample_rate_hz);
-
-    if (audio_playback_is_enabled()) {
-        i2sStopExchange(&I2S_DRIVER);
-    }
 
     // The I2S size is counted in number of transactions.
     g_i2s_config.size  = audio_playback_get_buffer_size() / AUDIO_SAMPLE_SIZE;
     g_i2s_config.i2spr = AUDIO_SPI_GET_I2SPR(sample_rate_hz);
-
-    if (audio_playback_is_enabled()) {
-        i2sStartExchange(&I2S_DRIVER);
-    }
 }
 
 static THD_WORKING_AREA(wa_audio_thread, 128);
