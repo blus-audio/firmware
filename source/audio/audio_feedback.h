@@ -19,7 +19,7 @@ uint32_t audio_feedback_get_value(void);
 void audio_feedback_start_sof_capture(void);
 void audio_feedback_stop_sof_capture(void);
 
-void audio_feedback_cb(USBDriver *usbp, usbep_t ep);
+void audio_feedback_cb(USBDriver *p_usb, usbep_t endpoint_identifier);
 
 void audio_feedback_init(void);
 

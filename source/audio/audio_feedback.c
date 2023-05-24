@@ -303,10 +303,10 @@ void audio_feedback_stop_sof_capture(void) {
 /**
  * @brief Joint callback for when feedback was transmitted, or failed, in the current frame.
  *
- * @param usbp A pointer to the USB driver structure.
- * @param ep The endpoint, for which the feedback was called.
+ * @param p_usb A pointer to the USB driver structure.
+ * @param endpoint_identifier The endpoint, for which the feedback was called.
  */
-void audio_feedback_cb(USBDriver *usbp, usbep_t ep) {
+void audio_feedback_cb(USBDriver *p_usb, usbep_t endpoint_identifier) {
     if (audio_playback_get_state() == AUDIO_PLAYBACK_STATE_IDLE) {
         // Feedback is only active while streaming.
         return;
@@ -318,10 +318,10 @@ void audio_feedback_cb(USBDriver *usbp, usbep_t ep) {
         static uint8_t feedback_buffer[AUDIO_FEEDBACK_BUFFER_SIZE];
         value_to_byte_array(feedback_buffer, g_feedback.value, AUDIO_FEEDBACK_BUFFER_SIZE);
 
-        usbStartTransmitI(usbp, ep, feedback_buffer, AUDIO_FEEDBACK_BUFFER_SIZE);
+        usbStartTransmitI(p_usb, endpoint_identifier, feedback_buffer, AUDIO_FEEDBACK_BUFFER_SIZE);
     } else {
         // Transmit an empty packet.
-        usbStartTransmitI(usbp, ep, NULL, 0);
+        usbStartTransmitI(p_usb, endpoint_identifier, NULL, 0);
     }
 
     chSysUnlockFromISR();

@@ -17,7 +17,7 @@
 #include "audio_request.h"
 
 void audio_setup(mailbox_t *p_mailbox);
-void audio_reset(USBDriver *usbp);
+void audio_reset(USBDriver *p_usb);
 
 #endif  // SOURCE_AUDIO_AUDIO_H_
 

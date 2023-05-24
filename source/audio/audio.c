@@ -105,10 +105,10 @@ static void audio_init_context(volatile struct audio_context *p_context, mailbox
  * @details Is called on USB reset, unconfigure, or suspend. First calls \a audio_stop_streaming() , then resets the
  * internal state of the module.
  *
- * @param usbp The pointer to the USB driver structure.
+ * @param p_usb The pointer to the USB driver structure.
  */
-void audio_reset(USBDriver *usbp) {
-    audio_playback_stop_streaming(usbp);
+void audio_reset(USBDriver *p_usb) {
+    audio_playback_stop_streaming(p_usb);
     audio_init_context(&g_audio_context, g_audio_context.p_mailbox);
 }
 

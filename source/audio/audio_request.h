@@ -17,7 +17,7 @@
 bool     audio_request_is_channel_muted(enum audio_common_channel audio_channel);
 int16_t  audio_request_get_channel_volume(enum audio_common_channel audio_channel);
 uint32_t audio_request_get_sample_rate_hz(void);
-bool     audio_request_hook_cb(USBDriver *usbp);
+bool     audio_request_hook_cb(USBDriver *p_usb);
 
 void audio_request_init(mailbox_t *p_mailbox);
 

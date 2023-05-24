@@ -64,10 +64,10 @@ static const USBEndpointConfig endpoint2_config = {.ep_mode       = USB_EP_MODE_
 /**
  * @brief Handles global events that the USB driver triggers.
  *
- * @param usbp A pointer to the USB driver structure.
+ * @param p_usb A pointer to the USB driver structure.
  * @param event The event that was triggered.
  */
-void usb_event_cb(USBDriver *usbp, usbevent_t event) {
+void usb_event_cb(USBDriver *p_usb, usbevent_t event) {
     switch (event) {
         case USB_EVENT_ADDRESS:
             return;
@@ -75,15 +75,15 @@ void usb_event_cb(USBDriver *usbp, usbevent_t event) {
         case USB_EVENT_CONFIGURED:
             // Enables configured endpoints.
             chSysLockFromISR();
-            usbInitEndpointI(usbp, USB_DESC_ENDPOINT_PLAYBACK, &endpoint1_config);
-            usbInitEndpointI(usbp, USB_DESC_ENDPOINT_FEEDBACK, &endpoint2_config);
+            usbInitEndpointI(p_usb, USB_DESC_ENDPOINT_PLAYBACK, &endpoint1_config);
+            usbInitEndpointI(p_usb, USB_DESC_ENDPOINT_FEEDBACK, &endpoint2_config);
             chSysUnlockFromISR();
             return;
 
         case USB_EVENT_RESET:
         case USB_EVENT_UNCONFIGURED:
         case USB_EVENT_SUSPEND:
-            audio_reset(usbp);
+            audio_reset(p_usb);
             return;
 
         case USB_EVENT_WAKEUP:
@@ -97,16 +97,18 @@ void usb_event_cb(USBDriver *usbp, usbevent_t event) {
 /**
  * @brief Callback function that returns the requested USB descriptor.
  *
- * @param usbp A pointer to the USB driver structure.
- * @param dtype The descriptor type that is requested.
- * @param dindex The index of data within the descriptor to fetch.
- * @param lang Currently unused - language specifier.
+ * @param p_usb A pointer to the USB driver structure.
+ * @param descriptor_type The descriptor type that is requested.
+ * @param data_index The index of data within the descriptor to fetch.
+ * @param language Currently unused - language specifier.
  * @return const USBDescriptor* The requested descriptor.
  */
-const USBDescriptor *usb_get_descriptor_cb(USBDriver *usbp, uint8_t dtype, uint8_t dindex, uint16_t lang) {
-    (void)usbp;
-    (void)lang;
-    switch (dtype) {
+const USBDescriptor *usb_get_descriptor_cb(USBDriver *p_usb, uint8_t descriptor_type, uint8_t data_index,
+                                           uint16_t language) {
+    (void)p_usb;
+    (void)language;
+
+    switch (descriptor_type) {
         case USB_DESCRIPTOR_DEVICE:
             return &audio_device_descriptor;
 
@@ -114,7 +116,10 @@ const USBDescriptor *usb_get_descriptor_cb(USBDriver *usbp, uint8_t dtype, uint8
             return &audio_configuration_descriptor;
 
         case USB_DESCRIPTOR_STRING:
-            if (dindex < 4) return &audio_strings[dindex];
+            if (data_index < ARRAY_LENGTH(audio_strings)) {
+                return &audio_strings[data_index];
+            }
+            return NULL;
     }
     return NULL;
 }

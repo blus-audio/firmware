@@ -95,10 +95,10 @@ uint32_t audio_request_get_sample_rate_hz(void) { return g_controls.sample_rate_
 /**
  * @brief Update changed volume levels.
  *
- * @param usbp A pointer to the USB driver structure.
+ * @param p_usb A pointer to the USB driver structure.
  */
-static void audio_request_update_volumes(USBDriver *usbp) {
-    (void)usbp;
+static void audio_request_update_volumes(USBDriver *p_usb) {
+    (void)p_usb;
     uint8_t *p_data = (uint8_t *)g_request.data;
 
     chSysLockFromISR();
@@ -122,10 +122,10 @@ static void audio_request_update_volumes(USBDriver *usbp) {
 /**
  * @brief Update changed mute states.
  *
- * @param usbp A pointer to the USB driver structure.
+ * @param p_usb A pointer to the USB driver structure.
  */
-static void audio_request_update_mute_states(USBDriver *usbp) {
-    (void)usbp;
+static void audio_request_update_mute_states(USBDriver *p_usb) {
+    (void)p_usb;
     uint8_t *p_data = (uint8_t *)g_request.data;
 
     chSysLockFromISR();
@@ -148,10 +148,10 @@ static void audio_request_update_mute_states(USBDriver *usbp) {
 /**
  * @brief Update changed audio sample rate.
  *
- * @param usbp A pointer to the USB driver structure.
+ * @param p_usb A pointer to the USB driver structure.
  */
-static void audio_request_update_sample_rate(USBDriver *usbp) {
-    (void)usbp;
+static void audio_request_update_sample_rate(USBDriver *p_usb) {
+    (void)p_usb;
     uint8_t *p_data = (uint8_t *)g_request.data;
 
     byte_array_to_value(p_data, (uint32_t *)&g_controls.sample_rate_hz, g_request.length);
@@ -164,11 +164,11 @@ static void audio_request_update_sample_rate(USBDriver *usbp) {
 /**
  * @brief Handle class interface function unit requests.
  *
- * @param usbp A pointer to the  USB driver structure.
+ * @param p_usb A pointer to the  USB driver structure.
  * @return true if a setup request could be handled.
  * @return false if a setup request could not be handled.
  */
-static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
+static bool audio_request_handle_class_interface_fu(USBDriver *p_usb) {
     uint8_t *p_data = (uint8_t *)g_request.data;
 
     uint8_t channel_index = GET_BYTE(g_request.value, 0u);
@@ -183,7 +183,7 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
         case AUDIO_REQUEST_SET_MIN:
         case AUDIO_REQUEST_SET_RES:
             if (control_unit == USB_DESC_FU_CONTROLS_VOLUME) {
-                usbSetupTransfer(usbp, p_data, g_request.length, NULL);
+                usbSetupTransfer(p_usb, p_data, g_request.length, NULL);
                 return true;
             }
             break;
@@ -193,7 +193,7 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
                 for (size_t i = 0; i < g_request.length; i++) {
                     ((int16_t *)p_data)[i] = (int16_t)AUDIO_MAX_VOLUME_DB * AUDIO_VOLUME_STEPS_PER_DB;
                 }
-                usbSetupTransfer(usbp, p_data, g_request.length, NULL);
+                usbSetupTransfer(p_usb, p_data, g_request.length, NULL);
                 return true;
             }
             break;
@@ -203,7 +203,7 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
                 for (size_t i = 0; i < g_request.length; i++) {
                     ((int16_t *)p_data)[i] = (int16_t)AUDIO_MIN_VOLUME_DB * AUDIO_VOLUME_STEPS_PER_DB;
                 }
-                usbSetupTransfer(usbp, p_data, g_request.length, NULL);
+                usbSetupTransfer(p_usb, p_data, g_request.length, NULL);
                 return true;
             }
             break;
@@ -213,7 +213,7 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
                 for (size_t i = 0; i < g_request.length; i++) {
                     ((int16_t *)p_data)[i] = (int16_t)AUDIO_VOLUME_INCREMENT_STEPS;
                 }
-                usbSetupTransfer(usbp, p_data, g_request.length, NULL);
+                usbSetupTransfer(p_usb, p_data, g_request.length, NULL);
                 return true;
             }
             break;
@@ -224,11 +224,11 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
                     uint8_t value[3] = {0, g_controls.volume.b_channel_mute_states[AUDIO_COMMON_CHANNEL_LEFT],
                                         g_controls.volume.b_channel_mute_states[AUDIO_COMMON_CHANNEL_RIGHT]};
                     memcpy(p_data, value, sizeof(value));
-                    usbSetupTransfer(usbp, p_data, g_request.length, NULL);
+                    usbSetupTransfer(p_usb, p_data, g_request.length, NULL);
                     return true;
                 } else if (channel_index >= 1) {
                     *p_data = g_controls.volume.b_channel_mute_states[channel_index - 1];
-                    usbSetupTransfer(usbp, p_data, g_request.length, NULL);
+                    usbSetupTransfer(p_usb, p_data, g_request.length, NULL);
                     return true;
                 }
                 return true;
@@ -237,12 +237,12 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
                     int16_t value[3] = {0, g_controls.volume.channel_volume_levels_8q8_db[AUDIO_COMMON_CHANNEL_LEFT],
                                         g_controls.volume.channel_volume_levels_8q8_db[AUDIO_COMMON_CHANNEL_RIGHT]};
                     memcpy(p_data, value, sizeof(value));
-                    usbSetupTransfer(usbp, p_data, g_request.length, NULL);
+                    usbSetupTransfer(p_usb, p_data, g_request.length, NULL);
                     return true;
                 } else if (channel_index >= 1) {
                     memcpy(p_data, (uint8_t *)&g_controls.volume.channel_volume_levels_8q8_db[channel_index - 1],
                            sizeof(int16_t));
-                    usbSetupTransfer(usbp, p_data, g_request.length, NULL);
+                    usbSetupTransfer(p_usb, p_data, g_request.length, NULL);
                     return true;
                 }
             }
@@ -251,11 +251,11 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
         case AUDIO_REQUEST_SET_CUR:
             if (control_unit == USB_DESC_FU_CONTROLS_MUTE) {
                 g_controls.volume.channel_index = channel_index;
-                usbSetupTransfer(usbp, p_data, g_request.length, audio_request_update_mute_states);
+                usbSetupTransfer(p_usb, p_data, g_request.length, audio_request_update_mute_states);
                 return true;
             } else if (control_unit == USB_DESC_FU_CONTROLS_VOLUME) {
                 g_controls.volume.channel_index = channel_index;
-                usbSetupTransfer(usbp, p_data, g_request.length, audio_request_update_volumes);
+                usbSetupTransfer(p_usb, p_data, g_request.length, audio_request_update_volumes);
                 return true;
             }
             break;
@@ -270,9 +270,9 @@ static bool audio_request_handle_class_interface_fu(USBDriver *usbp) {
 /**
  * @brief Handle USB audio control messages.
  *
- * @param usbp A pointer the USB driver structure.
+ * @param p_usb A pointer the USB driver structure.
  */
-static bool audio_request_handle_class_interface(USBDriver *usbp) {
+static bool audio_request_handle_class_interface(USBDriver *p_usb) {
     uint8_t interface = GET_BYTE(g_request.index, 0u);
     uint8_t entity    = GET_BYTE(g_request.index, 1u);
 
@@ -283,7 +283,7 @@ static bool audio_request_handle_class_interface(USBDriver *usbp) {
 
     if (entity == USB_DESC_UNIT_FUNCTION) {
         // Handle requests to the audio function unit
-        return audio_request_handle_class_interface_fu(usbp);
+        return audio_request_handle_class_interface_fu(p_usb);
     }
 
     // No control message handling took place.
@@ -293,22 +293,22 @@ static bool audio_request_handle_class_interface(USBDriver *usbp) {
 /**
  * @brief Handle standard interface requests.
  *
- * @param usbp A pointer to the  USB driver structure.
+ * @param p_usb A pointer to the  USB driver structure.
  * @return true if a setup request could be handled.
  * @return false if a setup request could not be handled.
  */
-static bool audio_request_handle_standard_interface(USBDriver *usbp) {
+static bool audio_request_handle_standard_interface(USBDriver *p_usb) {
     switch (g_request.request) {
         case USB_REQ_SET_INTERFACE:
             // Switch between operational and zero-bandwidth alternate modes.
             if (g_request.index == USB_DESC_INTERFACE_STREAMING) {
                 if (g_request.value == USB_DESC_INTERFACE_ALT_SETTING_OPERATIONAL) {
-                    audio_playback_start_streaming(usbp);
+                    audio_playback_start_streaming(p_usb);
                 } else {
-                    audio_playback_stop_streaming(usbp);
+                    audio_playback_stop_streaming(p_usb);
                 }
 
-                usbSetupTransfer(usbp, NULL, 0, NULL);
+                usbSetupTransfer(p_usb, NULL, 0, NULL);
                 return true;
             } else {
                 return false;
@@ -321,11 +321,11 @@ static bool audio_request_handle_standard_interface(USBDriver *usbp) {
 /**
  * @brief Handle class endpoint audio requests.
  *
- * @param usbp A pointer to the  USB driver structure.
+ * @param p_usb A pointer to the  USB driver structure.
  * @return true if a setup request could be handled.
  * @return false if a setup request could not be handled.
  */
-static bool audio_request_handle_class_endpoint(USBDriver *usbp) {
+static bool audio_request_handle_class_endpoint(USBDriver *p_usb) {
     uint8_t *p_data = (uint8_t *)g_request.data;
 
     uint8_t  control_selector = GET_BYTE(g_request.value, 1u);
@@ -337,7 +337,7 @@ static bool audio_request_handle_class_endpoint(USBDriver *usbp) {
         return false;
     }
 
-    usbSetupTransfer(usbp, p_data, g_request.length, audio_request_update_sample_rate);
+    usbSetupTransfer(p_usb, p_data, g_request.length, audio_request_update_sample_rate);
 
     return true;
 }
@@ -345,14 +345,14 @@ static bool audio_request_handle_class_endpoint(USBDriver *usbp) {
 /**
  * @brief Handle standard audio requests.
  *
- * @param usbp A pointer to the  USB driver structure.
+ * @param p_usb A pointer to the  USB driver structure.
  * @return true if a setup request could be handled.
  * @return false if a setup request could not be handled.
  */
-static bool audio_request_handle_standard(USBDriver *usbp) {
+static bool audio_request_handle_standard(USBDriver *p_usb) {
     switch (g_request.request_type & USB_RTYPE_RECIPIENT_MASK) {
         case USB_RTYPE_RECIPIENT_INTERFACE:
-            return audio_request_handle_standard_interface(usbp);
+            return audio_request_handle_standard_interface(p_usb);
 
         default:
             return false;
@@ -362,17 +362,17 @@ static bool audio_request_handle_standard(USBDriver *usbp) {
 /**
  * @brief Handle class audio requests.
  *
- * @param usbp A pointer to the  USB driver structure.
+ * @param p_usb A pointer to the  USB driver structure.
  * @return true if a setup request could be handled.
  * @return false if a setup request could not be handled.
  */
-static bool audio_request_handle_class(USBDriver *usbp) {
+static bool audio_request_handle_class(USBDriver *p_usb) {
     switch (g_request.request_type & USB_RTYPE_RECIPIENT_MASK) {
         case USB_RTYPE_RECIPIENT_INTERFACE:
-            return audio_request_handle_class_interface(usbp);
+            return audio_request_handle_class_interface(p_usb);
 
         case USB_RTYPE_RECIPIENT_ENDPOINT:
-            return audio_request_handle_class_endpoint(usbp);
+            return audio_request_handle_class_endpoint(p_usb);
 
         default:
             return false;
@@ -382,23 +382,23 @@ static bool audio_request_handle_class(USBDriver *usbp) {
 /**
  * @brief Handles setup requests.
  *
- * @param usbp A pointer to the  USB driver structure.
+ * @param p_usb A pointer to the  USB driver structure.
  * @return true if a setup request could be handled.
  * @return false if a setup request could not be handled.
  */
-bool audio_request_hook_cb(USBDriver *usbp) {
-    g_request.request_type = usbp->setup[0];
-    g_request.request      = usbp->setup[1];
-    g_request.value        = (usbp->setup[3] << 8) | (usbp->setup[2]);
-    g_request.index        = ((usbp->setup[5] << 8) | usbp->setup[4]);
-    g_request.length       = ((usbp->setup[7] << 8) | usbp->setup[6]);
+bool audio_request_hook_cb(USBDriver *p_usb) {
+    g_request.request_type = p_usb->setup[0];
+    g_request.request      = p_usb->setup[1];
+    g_request.value        = (p_usb->setup[3] << 8) | (p_usb->setup[2]);
+    g_request.index        = ((p_usb->setup[5] << 8) | p_usb->setup[4]);
+    g_request.length       = ((p_usb->setup[7] << 8) | p_usb->setup[6]);
 
     switch (g_request.request_type & USB_RTYPE_TYPE_MASK) {
         case USB_RTYPE_TYPE_STD:
-            return audio_request_handle_standard(usbp);
+            return audio_request_handle_standard(p_usb);
 
         case USB_RTYPE_TYPE_CLASS:
-            return audio_request_handle_class(usbp);
+            return audio_request_handle_class(p_usb);
 
         default:
             return false;

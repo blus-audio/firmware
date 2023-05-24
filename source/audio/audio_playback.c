@@ -196,16 +196,16 @@ static void audio_playback_stop(void) {
  * @brief Joint callback for when audio data was received from the host, or the reception failed in the current frame.
  * @note This internally uses I-class functions.
  *
- * @param usbp A pointer to the USB driver structure.
- * @param ep The endpoint, for which the feedback was called.
+ * @param p_usb A pointer to the USB driver structure.
+ * @param endpoint_identifier The endpoint, for which the feedback was called.
  */
-void audio_playback_received_cb(USBDriver *usbp, usbep_t ep) {
+void audio_playback_received_cb(USBDriver *p_usb, usbep_t endpoint_identifier) {
     if (g_playback.state == AUDIO_PLAYBACK_STATE_IDLE) {
         // Disregard packets, when idle.
         return;
     }
 
-    size_t transaction_size = usbGetReceiveTransactionSizeX(usbp, ep);
+    size_t transaction_size = usbGetReceiveTransactionSizeX(p_usb, endpoint_identifier);
 
     chSysLockFromISR();
 
@@ -220,7 +220,7 @@ void audio_playback_received_cb(USBDriver *usbp, usbep_t ep) {
         audio_playback_start();
     }
 
-    usbStartReceiveI(usbp, ep, (uint8_t *)&g_playback.buffer[g_playback.buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
+    usbStartReceiveI(p_usb, endpoint_identifier, (uint8_t *)&g_playback.buffer[g_playback.buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
 
     chSysUnlockFromISR();
 }
@@ -229,9 +229,9 @@ void audio_playback_received_cb(USBDriver *usbp, usbep_t ep) {
  * @brief Start streaming audio via USB.
  * @details Is called, when the audio endpoint goes into its operational alternate mode (actual music playback begins).
  *
- * @param usbp The pointer to the USB driver structure.
+ * @param p_usb The pointer to the USB driver structure.
  */
-void audio_playback_start_streaming(USBDriver *usbp) {
+void audio_playback_start_streaming(USBDriver *p_usb) {
     if (g_playback.state != AUDIO_PLAYBACK_STATE_IDLE) {
         // Streaming is already enabled.
         return;
@@ -243,10 +243,10 @@ void audio_playback_start_streaming(USBDriver *usbp) {
     chSysLockFromISR();
 
     // Feedback yet unknown, transmit empty packet.
-    usbStartTransmitI(usbp, USB_DESC_ENDPOINT_FEEDBACK, NULL, 0);
+    usbStartTransmitI(p_usb, USB_DESC_ENDPOINT_FEEDBACK, NULL, 0);
 
     // Initial audio data reception.
-    usbStartReceiveI(usbp, USB_DESC_ENDPOINT_PLAYBACK, (uint8_t *)&g_playback.buffer[g_playback.buffer_write_offset],
+    usbStartReceiveI(p_usb, USB_DESC_ENDPOINT_PLAYBACK, (uint8_t *)&g_playback.buffer[g_playback.buffer_write_offset],
                      AUDIO_MAX_PACKET_SIZE);
 
     chSysUnlockFromISR();
@@ -256,10 +256,10 @@ void audio_playback_start_streaming(USBDriver *usbp) {
  * @brief Disable audio streaming and output.
  * @details Is called when the audio endpoint goes into its zero bandwidth alternate mode, or by \a audio_reset() .
  *
- * @param usbp The pointer to the USB driver structure.
+ * @param p_usb The pointer to the USB driver structure.
  */
-void audio_playback_stop_streaming(USBDriver *usbp) {
-    (void)usbp;
+void audio_playback_stop_streaming(USBDriver *p_usb) {
+    (void)p_usb;
 
     if (g_playback.state == AUDIO_PLAYBACK_STATE_IDLE) {
         // Streaming is already disabled.

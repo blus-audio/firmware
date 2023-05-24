@@ -28,11 +28,11 @@ size_t   audio_playback_get_buffer_fill_size(void);
 size_t   audio_playback_get_buffer_target_fill_size(void);
 size_t   audio_playback_get_packet_size(void);
 
-void                      audio_playback_start_streaming(USBDriver *usbp);
-void                      audio_playback_stop_streaming(USBDriver *usbp);
+void                      audio_playback_start_streaming(USBDriver *p_usb);
+void                      audio_playback_stop_streaming(USBDriver *p_usb);
 enum audio_playback_state audio_playback_get_state(void);
 
-void audio_playback_received_cb(USBDriver *usbp, usbep_t ep);
+void audio_playback_received_cb(USBDriver *p_usb, usbep_t endpoint_identifier);
 
 void audio_playback_set_sample_rate(uint32_t sample_rate_hz);
 void audio_playback_init(mailbox_t *p_mailbox);
