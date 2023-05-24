@@ -88,7 +88,7 @@ static THD_FUNCTION(housekeeping_thread, arg) {
         chprintf(gp_stream, "Audio buffer fill size: %lu / %lu (feedback %lu)\n", audio_playback_get_buffer_fill_size(),
                  AUDIO_MAX_BUFFER_SIZE, audio_feedback_get_value());
 
-        chprintf(gp_stream, "Audio state: %u\n", audio_playback_get_state());
+        chprintf(gp_stream, "Audio playback state: %u\n", audio_playback_get_state());
 #endif
 
         chThdSleepMilliseconds(500);

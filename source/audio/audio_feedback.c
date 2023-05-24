@@ -267,6 +267,7 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
  */
 void audio_feedback_start_sof_capture(void) {
     chSysLock();
+
     chDbgAssert(I2S_DRIVER.state == I2S_ACTIVE, "Only start SOF capture after the I2S driver.");
 
     // Reset TIM2 instance.
@@ -285,6 +286,7 @@ void audio_feedback_start_sof_capture(void) {
     TIM2->OR = TIM_OR_ITR1_RMP_1;
 
     audio_feedback_init();
+
     chSysUnlock();
 }
 
@@ -293,10 +295,12 @@ void audio_feedback_start_sof_capture(void) {
  */
 void audio_feedback_stop_sof_capture(void) {
     chSysLock();
+
     nvicDisableVector(STM32_TIM2_NUMBER);
     TIM2->CR1 = 0;
 
     audio_feedback_init();
+
     chSysUnlock();
 }
 

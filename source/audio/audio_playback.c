@@ -15,7 +15,7 @@
 
 #include "usb_descriptors.h"
 
-static void audio_playback_reset(void);
+static void audio_playback_reset(enum audio_playback_state state);
 
 /**
  * @brief A structure that holds the state of audio playback, as well as the audio buffer.
@@ -161,12 +161,16 @@ static void audio_playback_update_fill_size(void) {
 /**
  * @brief Start playback, when the target audio buffer fill size is reached.
  * @details I2S transfers are started by sending a \a AUDIO_COMMON_MSG_START_PLAYBACK message.
+ * @note This internally uses I-class functions.
  */
-static void audio_playback_start(void) {
+static void audio_playback_start_playing(void) {
     if (g_playback.state == AUDIO_PLAYBACK_STATE_PLAYING) {
         // Playback already enabled.
         return;
     }
+
+    chDbgAssert(g_playback.state == AUDIO_PLAYBACK_STATE_STREAMING,
+                "Playing can only start, when streaming is enabled.");
 
     if (g_playback.buffer_fill_size >= g_playback.buffer_target_fill_size) {
         // Signal that the playback buffer is at or above the target fill size. This starts audio playback via I2S.
@@ -181,13 +185,13 @@ static void audio_playback_start(void) {
  * @details Sends a \a AUDIO_COMMON_MSG_STOP_PLAYBACK message.
  * @note This internally uses I-class functions.
  */
-static void audio_playback_stop(void) {
+static void audio_playback_stop_playing(void) {
     if (g_playback.state != AUDIO_PLAYBACK_STATE_PLAYING) {
         // Playback already disabled.
         return;
     }
 
-    audio_playback_reset();
+    audio_playback_reset(AUDIO_PLAYBACK_STATE_STREAMING);
 
     chMBPostI(gp_mailbox, AUDIO_COMMON_MSG_STOP_PLAYBACK);
 }
@@ -211,13 +215,13 @@ void audio_playback_received_cb(USBDriver *p_usb, usbep_t endpoint_identifier) {
 
     if (transaction_size == 0u) {
         // Failed transaction.
-        audio_playback_stop();
+        audio_playback_stop_playing();
     } else {
         // Samples were received successfully.
         audio_playback_update_write_offset(transaction_size);
         audio_playback_update_read_offset();
         audio_playback_update_fill_size();
-        audio_playback_start();
+        audio_playback_start_playing();
     }
 
     usbStartReceiveI(p_usb, endpoint_identifier, (uint8_t *)&g_playback.buffer[g_playback.buffer_write_offset],
@@ -233,15 +237,10 @@ void audio_playback_received_cb(USBDriver *p_usb, usbep_t endpoint_identifier) {
  * @param p_usb The pointer to the USB driver structure.
  */
 void audio_playback_start_streaming(USBDriver *p_usb) {
-    if (g_playback.state != AUDIO_PLAYBACK_STATE_IDLE) {
-        // Streaming is already enabled.
-        return;
-    }
-
-    audio_playback_reset();
-    g_playback.state = AUDIO_PLAYBACK_STATE_STREAMING;
-
     chSysLockFromISR();
+
+    chDbgAssert(g_playback.state == AUDIO_PLAYBACK_STATE_IDLE, "Playback must be idle before starting to stream.");
+    audio_playback_reset(AUDIO_PLAYBACK_STATE_STREAMING);
 
     // Feedback yet unknown, transmit empty packet.
     usbStartTransmitI(p_usb, USB_DESC_ENDPOINT_FEEDBACK, NULL, 0);
@@ -267,10 +266,11 @@ void audio_playback_stop_streaming(USBDriver *p_usb) {
         return;
     }
 
-    g_playback.state = AUDIO_PLAYBACK_STATE_IDLE;
-
     chSysLockFromISR();
-    audio_playback_stop();
+
+    audio_playback_stop_playing();
+    audio_playback_reset(AUDIO_PLAYBACK_STATE_IDLE);
+
     chSysUnlockFromISR();
 }
 
@@ -290,8 +290,13 @@ void audio_playback_init(mailbox_t *p_mailbox) {
 
 /**
  * @brief Reset the audio playback structure.
+ *
+ * @param state The new state to assign to the playback structure.
  */
-static void audio_playback_reset(void) { audio_playback_init(gp_mailbox); }
+static void audio_playback_reset(enum audio_playback_state state) {
+    audio_playback_init(gp_mailbox);
+    g_playback.state = state;
+}
 
 /**
  * @}
