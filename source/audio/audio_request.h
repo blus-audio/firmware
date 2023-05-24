@@ -14,8 +14,8 @@
 
 #include "audio_common.h"
 
-bool     audio_request_is_channel_muted(enum AUDIO_COMMON_CHANNEL audio_channel);
-int16_t  audio_request_get_channel_volume(enum AUDIO_COMMON_CHANNEL audio_channel);
+bool     audio_request_is_channel_muted(enum audio_common_channel audio_channel);
+int16_t  audio_request_get_channel_volume(enum audio_common_channel audio_channel);
 uint32_t audio_request_get_sample_rate_hz(void);
 bool     audio_request_hook_cb(USBDriver *usbp);
 

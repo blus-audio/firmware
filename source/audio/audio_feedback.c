@@ -81,7 +81,7 @@
 /**
  * @brief The state of the feedback correction.
  */
-enum AUDIO_FEEDBACK_CORRECTION_STATE {
+enum audio_feedback_correction_state {
     AUDIO_FEEDBACK_CORRECTION_STATE_OFF,       ///< No feedback correction active.
     AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE,  ///< Decrease the feedback value in case of over-filled audio
                                                ///< buffer.
@@ -90,17 +90,24 @@ enum AUDIO_FEEDBACK_CORRECTION_STATE {
 };
 
 /**
+ * @brief The general state of audio feedback reporting.
+ */
+enum audio_feedback_state {
+    AUDIO_FEEDBACK_STATE_IDLE,       ///< The feedback measurement is idle, and awaiting the first SOF packet.
+    AUDIO_FEEDBACK_STATE_MEASURING,  ///< The feedback measurement is active.
+    AUDIO_FEEDBACK_STATE_VALID       ///< The feedback value is active.
+};
+
+/**
  * @brief A structure that holds the state of the audio sample rate feedback.
  */
 struct audio_feedback {
-    enum AUDIO_FEEDBACK_CORRECTION_STATE correction_state;   ///< The state of forced feedback value correction.
-    bool                                 b_is_first_sof;     ///< If true, the first SOF packet is yet to be received.
-    bool                                 b_is_valid;         ///< Is true, if the feedback value is valid.
+    enum audio_feedback_correction_state correction_state;   ///< The state of forced feedback value correction.
     size_t                               sof_package_count;  ///< Counts the SOF packages since the last
                                                              ///< feedback value update.
-    uint32_t value;                                          ///< The current feedback value.
-    uint32_t last_counter_value;                             ///< The counter value at the time of the
-                                                             ///< previous SOF interrupt.
+    uint32_t                  value;                         ///< The current feedback value.
+    uint32_t                  last_counter_value;  ///< The counter value at the time of the previous SOF interrupt.
+    enum audio_feedback_state state;               ///< The general state of audio feedback reporting.
 } g_feedback;
 
 /**
@@ -192,10 +199,10 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
         return;
     }
 
-    if (g_feedback.b_is_first_sof) {
+    if (g_feedback.state == AUDIO_FEEDBACK_STATE_IDLE) {
         // On the first SOF signal, the feedback cannot be calculated yet. Only record the timer state.
         g_feedback.last_counter_value = counter_value;
-        g_feedback.b_is_first_sof     = false;
+        g_feedback.state              = AUDIO_FEEDBACK_STATE_MEASURING;
         OSAL_IRQ_EPILOGUE();
         return;
     }
@@ -248,7 +255,7 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
         audio_feedback_correct();
 
         g_feedback.sof_package_count = 0u;
-        g_feedback.b_is_valid        = true;
+        g_feedback.state             = AUDIO_FEEDBACK_STATE_VALID;
     }
 
     OSAL_IRQ_EPILOGUE();
@@ -300,14 +307,14 @@ void audio_feedback_stop_sof_capture(void) {
  * @param ep The endpoint, for which the feedback was called.
  */
 void audio_feedback_cb(USBDriver *usbp, usbep_t ep) {
-    if (!audio_playback_is_streaming_enabled()) {
+    if (audio_playback_get_state() == AUDIO_PLAYBACK_STATE_IDLE) {
         // Feedback is only active while streaming.
         return;
     }
 
     chSysLockFromISR();
 
-    if (g_feedback.b_is_valid) {
+    if (g_feedback.state == AUDIO_FEEDBACK_STATE_VALID) {
         static uint8_t feedback_buffer[AUDIO_FEEDBACK_BUFFER_SIZE];
         value_to_byte_array(feedback_buffer, g_feedback.value, AUDIO_FEEDBACK_BUFFER_SIZE);
 
@@ -325,8 +332,7 @@ void audio_feedback_cb(USBDriver *usbp, usbep_t ep) {
  */
 void audio_feedback_init(void) {
     g_feedback.correction_state   = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
-    g_feedback.b_is_first_sof     = true;
-    g_feedback.b_is_valid         = false;
+    g_feedback.state              = AUDIO_FEEDBACK_STATE_IDLE;
     g_feedback.sof_package_count  = 0u;
     g_feedback.last_counter_value = 0u;
     g_feedback.value              = 0u;

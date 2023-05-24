@@ -18,17 +18,6 @@
 static void audio_playback_reset(void);
 
 /**
- * @brief The state of the feedback correction.
- */
-enum AUDIO_FEEDBACK_CORRECTION_STATE {
-    AUDIO_PLAYBACK_FEEDBACK_CORRECTION_STATE_OFF,       ///< No feedback correction active.
-    AUDIO_PLAYBACK_FEEDBACK_CORRECTION_STATE_DECREASE,  ///< Decrease the feedback value in case of over-filled audio
-                                                        ///< buffer.
-    AUDIO_PLAYBACK_FEEDBACK_CORRECTION_STATE_INCREASE   ///< Increase the feedback value in case of under-filled audio
-                                                        ///< buffer.
-};
-
-/**
  * @brief A structure that holds the state of audio playback, as well as the audio buffer.
  */
 struct audio_playback {
@@ -40,10 +29,7 @@ struct audio_playback {
     size_t  buffer_target_fill_size;  ///< The number of audio sample bytes to collect before starting playback.
     size_t  buffer_fill_size;         ///< The fill size, which is the distance between read (I2S) and write (USB)
                                       ///< memory locations, in bytes.
-    bool b_streaming_enabled;         ///< True, if audio streaming is enabled, and
-                                      ///< data is being received via USB.
-    bool b_playback_enabled;          ///< True, if the audio output is enabled, and data
-                                      ///< is being output via I2S.
+    enum audio_playback_state state;  ///< The state of audio playback.
 } g_playback;
 
 /**
@@ -87,20 +73,9 @@ size_t audio_playback_get_buffer_target_fill_size(void) { return g_playback.buff
 size_t audio_playback_get_packet_size(void) { return g_playback.packet_size; }
 
 /**
- * @brief Check if audio playback via I2S is enabled.
- *
- * @return true if audio playback is enabled.
- * @return false if audio playback is disabled.
+ * @brief Get the audio playback state.
  */
-bool audio_playback_is_enabled(void) { return g_playback.b_playback_enabled; }
-
-/**
- * @brief Check if audio streaming is enabled.
- *
- * @return true if audio streaming is enabled.
- * @return false if audio streaming is disabled.
- */
-bool audio_playback_is_streaming_enabled(void) { return g_playback.b_streaming_enabled; }
+enum audio_playback_state audio_playback_get_state(void) { return g_playback.state; }
 
 /**
  * @brief Set a new audio quality, defined by sample rate and resolution.
@@ -188,14 +163,14 @@ static void audio_playback_update_fill_size(void) {
  * @details I2S transfers are started by sending a \a AUDIO_COMMON_MSG_START_PLAYBACK message.
  */
 static void audio_playback_start(void) {
-    if (audio_playback_is_enabled()) {
+    if (g_playback.state == AUDIO_PLAYBACK_STATE_PLAYBACK) {
         // Playback already enabled.
         return;
     }
 
     if (g_playback.buffer_fill_size >= g_playback.buffer_target_fill_size) {
         // Signal that the playback buffer is at or above the target fill size. This starts audio playback via I2S.
-        g_playback.b_playback_enabled = true;
+        g_playback.state = AUDIO_PLAYBACK_STATE_PLAYBACK;
 
         chMBPostI(gp_mailbox, AUDIO_COMMON_MSG_START_PLAYBACK);
     }
@@ -207,7 +182,7 @@ static void audio_playback_start(void) {
  * @note This internally uses I-class functions.
  */
 static void audio_playback_stop(void) {
-    if (!audio_playback_is_enabled()) {
+    if (g_playback.state != AUDIO_PLAYBACK_STATE_PLAYBACK) {
         // Playback already disabled.
         return;
     }
@@ -225,8 +200,8 @@ static void audio_playback_stop(void) {
  * @param ep The endpoint, for which the feedback was called.
  */
 void audio_playback_received_cb(USBDriver *usbp, usbep_t ep) {
-    if (!g_playback.b_streaming_enabled) {
-        // Disregard packets, when streaming is disabled.
+    if (g_playback.state == AUDIO_PLAYBACK_STATE_IDLE) {
+        // Disregard packets, when idle.
         return;
     }
 
@@ -257,13 +232,13 @@ void audio_playback_received_cb(USBDriver *usbp, usbep_t ep) {
  * @param usbp The pointer to the USB driver structure.
  */
 void audio_playback_start_streaming(USBDriver *usbp) {
-    if (g_playback.b_streaming_enabled) {
+    if (g_playback.state != AUDIO_PLAYBACK_STATE_IDLE) {
         // Streaming is already enabled.
         return;
     }
 
     audio_playback_reset();
-    g_playback.b_streaming_enabled = true;
+    g_playback.state = AUDIO_PLAYBACK_STATE_STREAMING;
 
     chSysLockFromISR();
 
@@ -286,12 +261,12 @@ void audio_playback_start_streaming(USBDriver *usbp) {
 void audio_playback_stop_streaming(USBDriver *usbp) {
     (void)usbp;
 
-    if (!g_playback.b_streaming_enabled) {
+    if (g_playback.state == AUDIO_PLAYBACK_STATE_IDLE) {
         // Streaming is already disabled.
         return;
     }
 
-    g_playback.b_streaming_enabled = false;
+    g_playback.state = AUDIO_PLAYBACK_STATE_IDLE;
 
     chSysLockFromISR();
     audio_playback_stop();
@@ -299,26 +274,23 @@ void audio_playback_stop_streaming(USBDriver *usbp) {
 }
 
 /**
- * @brief Reset the audio playback structure, initializing it with the current values.
- *
- * @param p_playback The pointer to the structure to reset.
- */
-static void audio_playback_reset(void) { audio_playback_init(gp_mailbox, g_playback.b_streaming_enabled); }
-
-/**
  * @brief Initialize the audio playback module.
  *
- * @param b_streaming_enabled If true, USB audio streaming is set to being enabled.
+ * @param p_mailbox A pointer to the mailbox to register.
  */
-void audio_playback_init(mailbox_t *p_mailbox, bool b_streaming_enabled) {
+void audio_playback_init(mailbox_t *p_mailbox) {
     gp_mailbox = p_mailbox;
 
     g_playback.buffer_write_offset = 0u;
     g_playback.buffer_read_offset  = 0u;
     g_playback.buffer_fill_size    = 0u;
-    g_playback.b_playback_enabled  = false;
-    g_playback.b_streaming_enabled = b_streaming_enabled;
+    g_playback.state               = AUDIO_PLAYBACK_STATE_IDLE;
 }
+
+/**
+ * @brief Reset the audio playback structure.
+ */
+static void audio_playback_reset(void) { audio_playback_init(gp_mailbox); }
 
 /**
  * @}

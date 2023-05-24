@@ -58,7 +58,7 @@
  * @note These values are not defined by the standard, but arbitrary. In some cases, there are hardware limitations with
  * regard to endpoint numbers.
  */
-enum USB_DESC_ENDPOINT {
+enum usb_desc_endpoint {
     USB_DESC_ENDPOINT_PLAYBACK = 0x01u,  ///< The endpoint for audio playback.
     USB_DESC_ENDPOINT_FEEDBACK = 0x02u,  ///< The endpoint for audio feedback.
 };
@@ -67,7 +67,7 @@ enum USB_DESC_ENDPOINT {
  * @brief Audio unit assignments.
  * @note These values are not defined by the standard, but arbitrary.
  */
-enum USB_DESC_UNIT {
+enum usb_desc_unit {
     USB_DESC_UNIT_INPUT    = 0x01u,  ///< The index of the input unit.
     USB_DESC_UNIT_FUNCTION = 0x02u,  ///< The index of the function unit.
     USB_DESC_UNIT_OUTPUT   = 0x03u,  ///< The index of the output unit.
@@ -77,7 +77,7 @@ enum USB_DESC_UNIT {
  * @brief Audio interface assignments.
  * @note These values are not defined by the standard, but arbitrary.
  */
-enum USB_DESC_INTERFACE {
+enum usb_desc_interface {
     USB_DESC_INTERFACE_CONTROL   = 0x00u,  ///< The index of the control interface.
     USB_DESC_INTERFACE_STREAMING = 0x01u,  ///< The index of the streaming interface.
 };
@@ -85,7 +85,7 @@ enum USB_DESC_INTERFACE {
 /**
  * @brief USB terminal types.
  */
-enum USB_DESC_TERMINAL_TYPE {
+enum usb_desc_terminal_type {
     USB_DESC_TERMINAL_TYPE_INPUT     = 0x02u,    ///< An input terminal.
     USB_DESC_TERMINAL_TYPE_OUTPUT    = 0x03u,    ///< An output terminal.
     USB_DESC_TERMINAL_TYPE_UNDEFINED = 0x0100u,  ///< An undefined terminal type.
@@ -100,7 +100,7 @@ enum USB_DESC_TERMINAL_TYPE {
 /**
  * @brief USB output terminal types.
  */
-enum USB_DESC_OUTPUT_TERMINAL_TYPE {
+enum usb_desc_output_terminal_type {
     USB_DESC_OUTPUT_TERMINAL_TYPE_SPEAKER                    = 0x0301u,  ///< A generic speaker.
     USB_DESC_OUTPUT_TERMINAL_TYPE_HEADPHONES                 = 0x0302u,  ///< Head mounted audio output.
     USB_DESC_OUTPUT_TERMINAL_TYPE_HEAD_MOUNTED_DISPLAY_AUDIO = 0x0303u,  ///< Part of a VR head mount.
@@ -113,7 +113,7 @@ enum USB_DESC_OUTPUT_TERMINAL_TYPE {
 /**
  * @brief Channel configuration bit masks.
  */
-enum USB_DESC_CHANNEL_CONFIG {
+enum usb_desc_channel_config {
     USB_DESC_CHANNEL_CONFIG_NONE            = 0x0000u,
     USB_DESC_CHANNEL_CONFIG_LEFT_FRONT      = 0x0001u,
     USB_DESC_CHANNEL_CONFIG_RIGHT_FRONT     = 0x0002u,
@@ -132,7 +132,7 @@ enum USB_DESC_CHANNEL_CONFIG {
 /**
  * @brief Feature unit control bit masks.
  */
-enum USB_DESC_FU_CONTROLS {
+enum usb_desc_fu_controls {
     USB_DESC_FU_CONTROLS_NONE              = 0X0000U,
     USB_DESC_FU_CONTROLS_MUTE              = 0X0001U,
     USB_DESC_FU_CONTROLS_VOLUME            = 0X0002u,

@@ -24,9 +24,18 @@
 #define I2S_DRIVER (I2SD3)
 
 /**
+ * @brief The audio channel (left or right).
+ */
+enum audio_common_channel {
+    AUDIO_COMMON_CHANNEL_LEFT   = 0x00u,  ///< The left audio channel.
+    AUDIO_COMMON_CHANNEL_RIGHT  = 0x01u,  ///< The right audio channel.
+    AUDIO_COMMON_CHANNEL_MASTER = 0xFFU,  ///< The audio master channel controls all channels.
+};
+
+/**
  * @brief Commonly used audio messages.
  */
-enum AUDIO_COMMON_MSG {
+enum audio_common_msg {
     AUDIO_COMMON_MSG_START_PLAYBACK,   ///< Start playback (I2S data output).
     AUDIO_COMMON_MSG_STOP_PLAYBACK,    ///< Stop playback (I2S data output).
     AUDIO_COMMON_MSG_SET_MUTE_STATE,   ///< Set new mute states.
@@ -38,7 +47,7 @@ enum AUDIO_COMMON_MSG {
 /**
  * @brief Supported audio sample rates.
  */
-enum AUDIO_SAMPLE_RATE {
+enum audio_sample_rate {
     AUDIO_SAMPLE_RATE_48_KHZ     = 48000u,
     AUDIO_SAMPLE_RATE_96_KHZ     = 96000u,
     AUDIO_DEFAULT_SAMPLE_RATE_HZ = AUDIO_SAMPLE_RATE_48_KHZ,
@@ -95,15 +104,6 @@ enum AUDIO_SAMPLE_RATE {
  * @param _packet_size The size of each packet.
  */
 #define AUDIO_COMMON_GET_BUFFER_SIZE(_packet_count, _packet_size) ((_packet_count) * (_packet_size))
-
-/**
- * @brief The audio channel (left or right).
- */
-enum AUDIO_COMMON_CHANNEL {
-    AUDIO_COMMON_CHANNEL_LEFT   = 0x00u,  ///< The left audio channel.
-    AUDIO_COMMON_CHANNEL_RIGHT  = 0x01u,  ///< The right audio channel.
-    AUDIO_COMMON_CHANNEL_MASTER = 0xFFU,  ///< The audio master channel controls all channels.
-};
 
 #endif  // SOURCE_AUDIO_AUDIO_COMMON_H_
 

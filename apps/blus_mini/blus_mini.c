@@ -87,6 +87,8 @@ static THD_FUNCTION(housekeeping_thread, arg) {
 
         chprintf(gp_stream, "Audio buffer fill size: %lu / %lu (feedback %lu)\n", audio_playback_get_buffer_fill_size(),
                  AUDIO_MAX_BUFFER_SIZE, audio_feedback_get_value());
+
+        chprintf(gp_stream, "Audio state: %u\n", audio_playback_get_state());
 #endif
 
         chThdSleepMilliseconds(500);
@@ -110,7 +112,6 @@ void app_setup(void) {
 
 /**
  * @brief Joint handling of volume and mute controls.
- * Only adjust volume, when streaming over USB. Other audio sources must not be affected by USB volume adjustments.
  */
 static void app_set_volume_and_mute_state(void) {
     if (audio_request_is_channel_muted(AUDIO_COMMON_CHANNEL_LEFT)) {

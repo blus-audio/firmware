@@ -125,7 +125,7 @@ static void audio_volume_reset_cb(virtual_timer_t *p_virtual_timer, void *p_arg)
     (void)p_arg;
 
     chSysLockFromISR();
-    if (!audio_playback_is_enabled() && audio_mailbox_is_set()) {
+    if ((audio_playback_get_state() != AUDIO_PLAYBACK_STATE_PLAYBACK) && audio_mailbox_is_set()) {
         chMBPostI(g_audio_context.p_mailbox, AUDIO_COMMON_MSG_RESET_VOLUME);
     }
     chSysUnlockFromISR();
@@ -147,7 +147,8 @@ static void audio_send_app_message(msg_t message) {
  * @details Configures the \a audio_playback module, as well as the I2S peripheral.
  */
 static void audio_update_sample_rate(void) {
-    chDbgAssert(!audio_playback_is_enabled(), "Playback must not be enabled while switching sample rates.");
+    chDbgAssert(audio_playback_get_state() != AUDIO_PLAYBACK_STATE_PLAYBACK,
+                "Playback must not be enabled while switching sample rates.");
 
     uint32_t sample_rate_hz = audio_request_get_sample_rate_hz();
     audio_playback_set_sample_rate(sample_rate_hz);
@@ -208,7 +209,10 @@ static THD_FUNCTION(audio_thread, arg) {
             case AUDIO_COMMON_MSG_SET_MUTE_STATE:
             case AUDIO_COMMON_MSG_SET_VOLUME:
             case AUDIO_COMMON_MSG_RESET_VOLUME:
-                audio_send_app_message(message);
+                // Do not update volume and mute levels, when not playing back.
+                if (audio_playback_get_state() == AUDIO_PLAYBACK_STATE_PLAYBACK) {
+                    audio_send_app_message(message);
+                }
                 break;
 
             default:
@@ -225,7 +229,7 @@ static THD_FUNCTION(audio_thread, arg) {
  */
 void audio_setup(mailbox_t *p_mailbox) {
     audio_request_init(&g_audio_mailbox);
-    audio_playback_init(&g_audio_mailbox, false);
+    audio_playback_init(&g_audio_mailbox);
     audio_feedback_init();
     audio_update_sample_rate();
 

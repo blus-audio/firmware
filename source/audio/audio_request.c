@@ -23,7 +23,7 @@
 /**
  * @brief Supported control requests from the USB Audio Class.
  */
-enum AUDIO_REQUEST {
+enum audio_request {
     AUDIO_REQUEST_SET_CUR = 0x01u,
     AUDIO_REQUEST_SET_MIN = 0x02u,
     AUDIO_REQUEST_SET_MAX = 0x03u,
@@ -37,7 +37,7 @@ enum AUDIO_REQUEST {
 /**
  * @brief A structure that holds the content of an audio request message.
  */
-static volatile struct audio_request {
+static volatile struct audio_request_message {
     uint8_t  request_type;  ///< The type of request.
     uint8_t  request;       ///< The request code itself.
     uint16_t value;         ///< The wValue field of the request.
@@ -71,7 +71,7 @@ static mailbox_t *gp_mailbox;
  * @return true if the channel is muted.
  * @return false if the channel is not muted.
  */
-bool audio_request_is_channel_muted(enum AUDIO_COMMON_CHANNEL audio_channel) {
+bool audio_request_is_channel_muted(enum audio_common_channel audio_channel) {
     return g_controls.volume.b_channel_mute_states[audio_channel];
 }
 
@@ -81,7 +81,7 @@ bool audio_request_is_channel_muted(enum AUDIO_COMMON_CHANNEL audio_channel) {
  * @param audio_channel The audio channel, for which to get the volume.
  * @return int16_t The volume level in 8.8 fractional dB.
  */
-int16_t audio_request_get_channel_volume(enum AUDIO_COMMON_CHANNEL audio_channel) {
+int16_t audio_request_get_channel_volume(enum audio_common_channel audio_channel) {
     return g_controls.volume.channel_volume_levels_8q8_db[audio_channel];
 }
 
