@@ -143,7 +143,7 @@ ASMXSRC = $(ALLXASMSRC)
 INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC)
 
 # Define C warning options here.
-CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes -Wunused-function -Werror
+CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes -Wunused -Werror
 
 # Define C++ warning options here.
 CPPWARN = -Wall -Wextra -Wundef
