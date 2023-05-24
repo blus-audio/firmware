@@ -220,7 +220,8 @@ void audio_playback_received_cb(USBDriver *p_usb, usbep_t endpoint_identifier) {
         audio_playback_start();
     }
 
-    usbStartReceiveI(p_usb, endpoint_identifier, (uint8_t *)&g_playback.buffer[g_playback.buffer_write_offset], AUDIO_MAX_PACKET_SIZE);
+    usbStartReceiveI(p_usb, endpoint_identifier, (uint8_t *)&g_playback.buffer[g_playback.buffer_write_offset],
+                     AUDIO_MAX_PACKET_SIZE);
 
     chSysUnlockFromISR();
 }
