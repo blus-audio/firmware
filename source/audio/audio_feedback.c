@@ -93,9 +93,9 @@ enum audio_feedback_correction_state {
  * @brief The general state of audio feedback reporting.
  */
 enum audio_feedback_state {
-    AUDIO_FEEDBACK_STATE_IDLE,       ///< The feedback measurement is idle, and awaiting the first SOF packet.
-    AUDIO_FEEDBACK_STATE_MEASURING,  ///< The feedback measurement is active.
-    AUDIO_FEEDBACK_STATE_VALID       ///< The feedback value is active.
+    AUDIO_FEEDBACK_STATE_IDLE,         ///< The feedback measurement is idle, and awaiting the first SOF packet.
+    AUDIO_FEEDBACK_STATE_INITIALIZED,  ///< The first SOF packet was acquired, but the feedback value is not yet valid.
+    AUDIO_FEEDBACK_STATE_ACTIVE        ///< The feedback value is valid, and feedback is provided to the host.
 };
 
 /**
@@ -202,7 +202,7 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
     if (g_feedback.state == AUDIO_FEEDBACK_STATE_IDLE) {
         // On the first SOF signal, the feedback cannot be calculated yet. Only record the timer state.
         g_feedback.last_counter_value = counter_value;
-        g_feedback.state              = AUDIO_FEEDBACK_STATE_MEASURING;
+        g_feedback.state              = AUDIO_FEEDBACK_STATE_INITIALIZED;
         OSAL_IRQ_EPILOGUE();
         return;
     }
@@ -255,7 +255,7 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
         audio_feedback_correct();
 
         g_feedback.sof_package_count = 0u;
-        g_feedback.state             = AUDIO_FEEDBACK_STATE_VALID;
+        g_feedback.state             = AUDIO_FEEDBACK_STATE_ACTIVE;
     }
 
     OSAL_IRQ_EPILOGUE();
@@ -301,20 +301,20 @@ void audio_feedback_stop_sof_capture(void) {
 }
 
 /**
- * @brief Joint callback for when feedback was transmitted, or failed, in the current frame.
+ * @brief Joint callback for when feedback was transmitted, or its transmission failed.
  *
  * @param p_usb A pointer to the USB driver structure.
  * @param endpoint_identifier The endpoint, for which the feedback was called.
  */
 void audio_feedback_cb(USBDriver *p_usb, usbep_t endpoint_identifier) {
     if (audio_playback_get_state() == AUDIO_PLAYBACK_STATE_IDLE) {
-        // Feedback is only active while streaming.
+        // Feedback values can only be reported, when audio playback is not idle.
         return;
     }
 
     chSysLockFromISR();
 
-    if (g_feedback.state == AUDIO_FEEDBACK_STATE_VALID) {
+    if (g_feedback.state == AUDIO_FEEDBACK_STATE_ACTIVE) {
         static uint8_t feedback_buffer[AUDIO_FEEDBACK_BUFFER_SIZE];
         value_to_byte_array(feedback_buffer, g_feedback.value, AUDIO_FEEDBACK_BUFFER_SIZE);
 

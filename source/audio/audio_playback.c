@@ -163,14 +163,14 @@ static void audio_playback_update_fill_size(void) {
  * @details I2S transfers are started by sending a \a AUDIO_COMMON_MSG_START_PLAYBACK message.
  */
 static void audio_playback_start(void) {
-    if (g_playback.state == AUDIO_PLAYBACK_STATE_PLAYBACK) {
+    if (g_playback.state == AUDIO_PLAYBACK_STATE_PLAYING) {
         // Playback already enabled.
         return;
     }
 
     if (g_playback.buffer_fill_size >= g_playback.buffer_target_fill_size) {
         // Signal that the playback buffer is at or above the target fill size. This starts audio playback via I2S.
-        g_playback.state = AUDIO_PLAYBACK_STATE_PLAYBACK;
+        g_playback.state = AUDIO_PLAYBACK_STATE_PLAYING;
 
         chMBPostI(gp_mailbox, AUDIO_COMMON_MSG_START_PLAYBACK);
     }
@@ -182,7 +182,7 @@ static void audio_playback_start(void) {
  * @note This internally uses I-class functions.
  */
 static void audio_playback_stop(void) {
-    if (g_playback.state != AUDIO_PLAYBACK_STATE_PLAYBACK) {
+    if (g_playback.state != AUDIO_PLAYBACK_STATE_PLAYING) {
         // Playback already disabled.
         return;
     }

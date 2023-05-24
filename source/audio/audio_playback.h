@@ -18,8 +18,8 @@
  */
 enum audio_playback_state {
     AUDIO_PLAYBACK_STATE_IDLE,       ///< The playback module is idle.
-    AUDIO_PLAYBACK_STATE_STREAMING,  ///< The playback module is connected for USB audio streaming.
-    AUDIO_PLAYBACK_STATE_PLAYBACK    ///< Audio is being played back via I2S.
+    AUDIO_PLAYBACK_STATE_STREAMING,  ///< The playback module is streaming audio via USB.
+    AUDIO_PLAYBACK_STATE_PLAYING     ///< Audio is being played back via I2S. Implies active USB streaming.
 };
 
 uint8_t *audio_playback_get_buffer(void);
