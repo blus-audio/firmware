@@ -1,6 +1,4 @@
 {
-    "pre-commit-helper.runOnSave": "fixes",
-    "editor.formatOnSave": false,
     "files.associations": {
         "*.h": "c",
         "*.c": "c",
@@ -21,9 +19,19 @@
     "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools",
     "makefile.configurations": [
         {
-            "name": "defaultConfig",
+            "name": "blus_mini",
             "makeArgs": [
-                "-j"
+                "-j",
+                "APP=blus_mini"
+            ],
+            "problemMatchers": [
+                "$gcc"
+            ],
+        },
+        {
+            "name": "default",
+            "makeArgs": [
+                "-j",
             ],
             "problemMatchers": [
                 "$gcc"
