@@ -24,7 +24,7 @@
 /**
  * @brief The number of messages that can be held.
  */
-#define MESSAGE_BUFFER_LENGTH 10u
+#define MESSAGE_BUFFER_LENGTH 32u
 
 /**
  * @brief The main thread mailbox. Used for communicating with the audio module.
@@ -36,12 +36,15 @@ static mailbox_t g_mailbox;
  */
 static msg_t g_mailbox_buffer[MESSAGE_BUFFER_LENGTH];
 
-#if ENABLE_REPORTING == TRUE
 /**
  * @brief Global stream pointer for print messages.
  */
 static BaseSequentialStream *gp_stream = (BaseSequentialStream *)&SD2;
-#endif
+
+/**
+ * @brief A lock for the stream that is used for printing messages.
+ */
+binary_semaphore_t g_stream_lock;
 
 // Weak definitions that shall be overridden by the user application (if required).
 
@@ -83,12 +86,14 @@ int main(void) {
     // Initialize the USB module.
     usb_setup();
 
-#if ENABLE_REPORTING == TRUE
+    chBSemObjectInit(&g_stream_lock, false);
+
     // Initialize a stream for print messages.
     sdStart(&SD2, NULL);
 
-    chprintf(gp_stream, "Starting USB-I2S bridge.\n");
-#endif
+    chBSemWait(&g_stream_lock);
+    chprintf(gp_stream, "### Starting USB-I2S bridge.\n");
+    chBSemSignal(&g_stream_lock);
 
     // Set up the user application.
     app_setup();
@@ -102,16 +107,21 @@ int main(void) {
             chSysHalt("Failed to receive message.");
         }
 
+        chBSemWait(&g_stream_lock);
+
         switch (message) {
             case AUDIO_COMMON_MSG_RESET_VOLUME:
+                chprintf(gp_stream, "### Reset volume.\n");
                 app_reset_volume();
                 break;
 
             case AUDIO_COMMON_MSG_SET_MUTE_STATE:
+                chprintf(gp_stream, "### Set mute state.\n");
                 app_set_mute_state();
                 break;
 
             case AUDIO_COMMON_MSG_SET_VOLUME:
+                chprintf(gp_stream, "### Set volume.\n");
                 app_set_volume();
                 break;
 
@@ -119,6 +129,8 @@ int main(void) {
                 chSysHalt("Unknown message type.");
                 break;
         }
+
+        chBSemSignal(&g_stream_lock);
     }
 }
 
