@@ -42,40 +42,58 @@ static mailbox_t *gp_mailbox;
  *
  * @return uint8_t* The data buffer.
  */
-uint8_t *audio_playback_get_buffer(void) { return g_playback.buffer; }
+uint8_t *audio_playback_get_buffer(void) {
+    chDbgCheckClassI();
+    return g_playback.buffer;
+}
 
 /**
  * @brief Get the audio data buffer size.
  *
  * @return size_t The data buffer size.
  */
-size_t audio_playback_get_buffer_size(void) { return g_playback.buffer_size; }
+size_t audio_playback_get_buffer_size(void) {
+    chDbgCheckClassI();
+    return g_playback.buffer_size;
+}
 
 /**
  * @brief Get the audio buffer fill size in bytes.
  *
  * @return size_t The fill size.
  */
-size_t audio_playback_get_buffer_fill_size(void) { return g_playback.buffer_fill_size; }
+size_t audio_playback_get_buffer_fill_size(void) {
+    chDbgCheckClassI();
+    return g_playback.buffer_fill_size;
+}
 
 /**
  * @brief Get the audio buffer target fill size in bytes.
  *
  * @return size_t The target fill size.
  */
-size_t audio_playback_get_buffer_target_fill_size(void) { return g_playback.buffer_target_fill_size; }
+size_t audio_playback_get_buffer_target_fill_size(void) {
+    chDbgCheckClassI();
+    return g_playback.buffer_target_fill_size;
+}
 
 /**
  * @brief Get the audio data packet size.
  *
  * @return size_t The audio data packet size.
  */
-size_t audio_playback_get_packet_size(void) { return g_playback.packet_size; }
+size_t audio_playback_get_packet_size(void) {
+    chDbgCheckClassI();
+    return g_playback.packet_size;
+}
 
 /**
  * @brief Get the audio playback state.
  */
-enum audio_playback_state audio_playback_get_state(void) { return g_playback.state; }
+enum audio_playback_state audio_playback_get_state(void) {
+    chDbgCheckClassI();
+    return g_playback.state;
+}
 
 /**
  * @brief Set a new audio quality, defined by sample rate and resolution.
@@ -83,6 +101,7 @@ enum audio_playback_state audio_playback_get_state(void) { return g_playback.sta
  * @param sample_rate_hz The selected sample rate in Hz.
  */
 void audio_playback_set_sample_rate(uint32_t sample_rate_hz) {
+    chDbgCheckClassI();
     g_playback.packet_size = AUDIO_COMMON_GET_PACKET_SIZE(AUDIO_CHANNEL_COUNT, sample_rate_hz, AUDIO_SAMPLE_SIZE);
     g_playback.buffer_size = AUDIO_COMMON_GET_BUFFER_SIZE(AUDIO_BUFFER_PACKET_COUNT, g_playback.packet_size);
 
@@ -98,6 +117,7 @@ void audio_playback_set_sample_rate(uint32_t sample_rate_hz) {
  * @param transaction_size The received audio byte count.
  */
 static void audio_playback_update_write_offset(size_t transaction_size) {
+    chDbgCheckClassI();
     size_t new_buffer_write_offset = g_playback.buffer_write_offset + transaction_size;
 
     chDbgAssert(new_buffer_write_offset < ARRAY_LENGTH(g_playback.buffer), "Transaction size exceeds audio buffer.");
@@ -129,6 +149,7 @@ static void audio_playback_update_write_offset(size_t transaction_size) {
  * @details The information is stored in the \a audio_playback structure.
  */
 static void audio_playback_update_read_offset(void) {
+    chDbgCheckClassI();
     size_t ndtr_value = (size_t)(I2S_DRIVER.dmatx->stream->NDTR);
 
     // For 16 bit audio, the number of data register (NDTR) holds the number of remaining audio samples.
@@ -153,6 +174,7 @@ static void audio_playback_update_read_offset(void) {
  * bytes that can still be written via I2S, before the buffer runs out.
  */
 static void audio_playback_update_fill_size(void) {
+    chDbgCheckClassI();
     // Calculate the distance between the DMA read offset, and the USB driver's write offset in the playback buffer.
     g_playback.buffer_fill_size = subtract_circular_unsigned(g_playback.buffer_write_offset,
                                                              g_playback.buffer_read_offset, g_playback.buffer_size);
@@ -164,6 +186,7 @@ static void audio_playback_update_fill_size(void) {
  * @note This internally uses I-class functions.
  */
 static void audio_playback_start_playing(void) {
+    chDbgCheckClassI();
     if (g_playback.state == AUDIO_PLAYBACK_STATE_PLAYING) {
         // Playback already enabled.
         return;
@@ -186,6 +209,7 @@ static void audio_playback_start_playing(void) {
  * @note This internally uses I-class functions.
  */
 static void audio_playback_stop_playing(void) {
+    chDbgCheckClassI();
     if (g_playback.state != AUDIO_PLAYBACK_STATE_PLAYING) {
         // Playback already disabled.
         return;
@@ -280,6 +304,7 @@ void audio_playback_stop_streaming(USBDriver *p_usb) {
  * @param p_mailbox A pointer to the mailbox to register.
  */
 void audio_playback_init(mailbox_t *p_mailbox) {
+    chDbgCheckClassI();
     gp_mailbox = p_mailbox;
 
     g_playback.buffer_write_offset = 0u;

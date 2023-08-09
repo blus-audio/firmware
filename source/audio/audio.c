@@ -14,12 +14,18 @@
 
 #include <string.h>
 
+#include "chprintf.h"
 #include "common.h"
+
+/**
+ * @brief Global stream pointer for print messages.
+ */
+static BaseSequentialStream *gp_stream = (BaseSequentialStream *)&SD2;
 
 /**
  * @brief The number of audio messages that can be held.
  */
-#define AUDIO_MESSAGE_BUFFER_LENGTH 10u
+#define AUDIO_MESSAGE_BUFFER_LENGTH 32u
 
 /**
  * @brief The time in ticks after which an \a AUDIO_COMMON_MSG_RESET_VOLUME message is sent, following the end of
@@ -151,6 +157,7 @@ static void audio_update_sample_rate(void) {
                 "Playback must not be enabled while switching sample rates.");
 
     uint32_t sample_rate_hz = audio_request_get_sample_rate_hz();
+
     audio_playback_set_sample_rate(sample_rate_hz);
 
     // The I2S size is counted in number of transactions.
@@ -185,6 +192,10 @@ static THD_FUNCTION(audio_thread, arg) {
 
         switch (message) {
             case AUDIO_COMMON_MSG_START_PLAYBACK:
+                chBSemWait(&g_stream_lock);
+                chprintf(gp_stream, "### Start playback.\n");
+                chBSemSignal(&g_stream_lock);
+
                 // Set volumes to the values configured via USB audio.
                 audio_send_app_message(AUDIO_COMMON_MSG_SET_VOLUME);
 
@@ -194,6 +205,10 @@ static THD_FUNCTION(audio_thread, arg) {
                 break;
 
             case AUDIO_COMMON_MSG_STOP_PLAYBACK:
+                chBSemWait(&g_stream_lock);
+                chprintf(gp_stream, "### Stop playback.\n");
+                chBSemSignal(&g_stream_lock);
+
                 audio_feedback_stop_sof_capture();
                 i2sStopExchange(&I2S_DRIVER);
                 i2sStop(&I2S_DRIVER);
@@ -202,7 +217,13 @@ static THD_FUNCTION(audio_thread, arg) {
                 break;
 
             case AUDIO_COMMON_MSG_SET_SAMPLE_RATE:
+                chBSemWait(&g_stream_lock);
+                chprintf(gp_stream, "### Set sample rate.\n");
+                chBSemSignal(&g_stream_lock);
+
+                chSysLock();
                 audio_update_sample_rate();
+                chSysUnlock();
                 break;
 
             // Relay messages to the app layer.
@@ -210,7 +231,11 @@ static THD_FUNCTION(audio_thread, arg) {
             case AUDIO_COMMON_MSG_SET_VOLUME:
             case AUDIO_COMMON_MSG_RESET_VOLUME:
                 // Do not update volume and mute levels, when not playing back.
-                if (audio_playback_get_state() == AUDIO_PLAYBACK_STATE_PLAYING) {
+                chSysLock();
+                bool b_playing = audio_playback_get_state() == AUDIO_PLAYBACK_STATE_PLAYING;
+                chSysUnlock();
+
+                if (b_playing) {
                     audio_send_app_message(message);
                 }
                 break;
@@ -228,6 +253,7 @@ static THD_FUNCTION(audio_thread, arg) {
  * @param p_mailbox The pointer to the mailbox, where audio messages are posted. To be provided by the user application.
  */
 void audio_setup(mailbox_t *p_mailbox) {
+    chSysLock();
     audio_request_init(&g_audio_mailbox);
     audio_playback_init(&g_audio_mailbox);
     audio_feedback_init();
@@ -238,6 +264,8 @@ void audio_setup(mailbox_t *p_mailbox) {
 
     // Initialize the mailbox connections.
     audio_init_context(&g_audio_context, p_mailbox);
+    chSysUnlock();
+
     chMBObjectInit(&g_audio_mailbox, g_audio_mailbox_buffer, ARRAY_LENGTH(g_audio_mailbox_buffer));
 
     // Start the audio thread at the end.

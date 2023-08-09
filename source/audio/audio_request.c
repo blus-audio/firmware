@@ -72,6 +72,7 @@ static mailbox_t *gp_mailbox;
  * @return false if the channel is not muted.
  */
 bool audio_request_is_channel_muted(enum audio_common_channel audio_channel) {
+    chDbgCheckClassI();
     return g_controls.volume.b_channel_mute_states[audio_channel];
 }
 
@@ -82,6 +83,7 @@ bool audio_request_is_channel_muted(enum audio_common_channel audio_channel) {
  * @return int16_t The volume level in 8.8 fractional dB.
  */
 int16_t audio_request_get_channel_volume(enum audio_common_channel audio_channel) {
+    chDbgCheckClassI();
     return g_controls.volume.channel_volume_levels_8q8_db[audio_channel];
 }
 
@@ -90,7 +92,10 @@ int16_t audio_request_get_channel_volume(enum audio_common_channel audio_channel
  *
  * @return uint32_t The sample rate in Hz.
  */
-uint32_t audio_request_get_sample_rate_hz(void) { return g_controls.sample_rate_hz; }
+uint32_t audio_request_get_sample_rate_hz(void) {
+    chDbgCheckClassI();
+    return g_controls.sample_rate_hz;
+}
 
 /**
  * @brief Update changed volume levels.
@@ -409,6 +414,7 @@ bool audio_request_hook_cb(USBDriver *p_usb) {
  * @brief Initialize the audio request module.
  */
 void audio_request_init(mailbox_t *p_mailbox) {
+    chDbgCheckClassI();
     gp_mailbox = p_mailbox;
 
     g_controls.volume.channel_index = 0u;

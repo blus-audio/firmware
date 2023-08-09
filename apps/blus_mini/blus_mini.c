@@ -16,12 +16,10 @@
 #include "chprintf.h"
 #include "tas2780.h"
 
-#if ENABLE_REPORTING == TRUE
 /**
  * @brief Global stream pointer for print messages.
  */
 static BaseSequentialStream *gp_stream = (BaseSequentialStream *)&SD2;
-#endif
 
 /**
  * @brief Settings structure for the TAS2780 I2C driver.
@@ -74,7 +72,15 @@ static THD_FUNCTION(housekeeping_thread, arg) {
     while (true) {
         tas2780_ensure_active_all();
 
-#if ENABLE_REPORTING == TRUE
+        chBSemWait(&g_stream_lock);
+        chSysLock();
+        size_t buffer_fill_size = audio_playback_get_buffer_fill_size();
+        size_t feedback_value   = audio_feedback_get_value();
+        size_t playback_state   = audio_playback_get_state();
+        chSysUnlock();
+
+// Disable extended reporting statistics.
+#if 0
         uint8_t noise_gate_mask = tas2780_get_noise_gate_mask_all();
         chprintf(gp_stream, "Noise gate: %u\n", noise_gate_mask);
 
@@ -84,12 +90,12 @@ static THD_FUNCTION(housekeeping_thread, arg) {
         chprintf(gp_stream, "Volume: %li / %li dB\n",
                  (audio_request_get_channel_volume(AUDIO_COMMON_CHANNEL_LEFT) >> 8),
                  (audio_request_get_channel_volume(AUDIO_COMMON_CHANNEL_RIGHT) >> 8));
-
-        chprintf(gp_stream, "Audio buffer fill size: %lu / %lu (feedback %lu)\n", audio_playback_get_buffer_fill_size(),
-                 AUDIO_MAX_BUFFER_SIZE, audio_feedback_get_value());
-
-        chprintf(gp_stream, "Audio playback state: %u\n", audio_playback_get_state());
 #endif
+
+        chprintf(gp_stream, "Buffer: %lu / %lu (fb %lu) @ state %lu\n", buffer_fill_size, AUDIO_MAX_BUFFER_SIZE,
+                 feedback_value, playback_state);
+
+        chBSemSignal(&g_stream_lock);
 
         chThdSleepMilliseconds(500);
     }
@@ -114,16 +120,24 @@ void app_setup(void) {
  * @brief Joint handling of volume and mute controls.
  */
 static void app_set_volume_and_mute_state(void) {
-    if (audio_request_is_channel_muted(AUDIO_COMMON_CHANNEL_LEFT)) {
+    chSysLock();
+    bool b_left_channel_is_muted  = audio_request_is_channel_muted(AUDIO_COMMON_CHANNEL_LEFT);
+    bool b_right_channel_is_muted = audio_request_is_channel_muted(AUDIO_COMMON_CHANNEL_RIGHT);
+
+    int16_t left_channel_volume  = audio_request_get_channel_volume(AUDIO_COMMON_CHANNEL_LEFT);
+    int16_t right_channel_volume = audio_request_get_channel_volume(AUDIO_COMMON_CHANNEL_RIGHT);
+    chSysUnlock();
+
+    if (b_left_channel_is_muted) {
         tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_LEFT);
     } else {
-        tas2780_set_volume_all(audio_request_get_channel_volume(AUDIO_COMMON_CHANNEL_LEFT), TAS2780_CHANNEL_LEFT);
+        tas2780_set_volume_all(left_channel_volume, TAS2780_CHANNEL_LEFT);
     }
 
-    if (audio_request_is_channel_muted(AUDIO_COMMON_CHANNEL_RIGHT)) {
+    if (b_right_channel_is_muted) {
         tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_RIGHT);
     } else {
-        tas2780_set_volume_all(audio_request_get_channel_volume(AUDIO_COMMON_CHANNEL_RIGHT), TAS2780_CHANNEL_RIGHT);
+        tas2780_set_volume_all(right_channel_volume, TAS2780_CHANNEL_RIGHT);
     }
 }
 

@@ -23,7 +23,7 @@
  *
  * For example, 16 represents a reported offset of 1.024 Hz - a mild adjustment.
  */
-#define AUDIO_FEEDBACK_CORRECTION_OFFSET (64u)
+#define AUDIO_FEEDBACK_CORRECTION_OFFSET (256u)
 
 /**
  * @brief The minimum supported exponent of the period between feedback packets.
@@ -133,26 +133,30 @@ uint32_t audio_feedback_get_value(void) { return g_feedback.value; }
  */
 static void audio_feedback_correct(void) {
     // Calculate thresholds for the buffer fill size.
+    chSysLockFromISR();
+    const size_t AUDIO_BUFFER_TARGET_FILL_SIZE = audio_playback_get_buffer_target_fill_size();
+    const size_t AUDIO_PACKET_SIZE             = audio_playback_get_packet_size();
+    const size_t AUDIO_BUFFER_FILL_SIZE        = audio_playback_get_buffer_fill_size();
+    chSysUnlockFromISR();
+
     const size_t AUDIO_BUFFER_MAX_FILL_SIZE =
-        audio_playback_get_buffer_target_fill_size() +
-        (AUDIO_FEEDBACK_MAX_PACKET_DEVIATION_COUNT * audio_playback_get_packet_size());
+        AUDIO_BUFFER_TARGET_FILL_SIZE + (AUDIO_FEEDBACK_MAX_PACKET_DEVIATION_COUNT * AUDIO_PACKET_SIZE);
     const size_t AUDIO_BUFFER_MIN_FILL_SIZE =
-        audio_playback_get_buffer_target_fill_size() -
-        (AUDIO_FEEDBACK_MAX_PACKET_DEVIATION_COUNT * audio_playback_get_packet_size());
+        AUDIO_BUFFER_TARGET_FILL_SIZE - (AUDIO_FEEDBACK_MAX_PACKET_DEVIATION_COUNT * AUDIO_PACKET_SIZE);
 
     switch (g_feedback.correction_state) {
         case AUDIO_FEEDBACK_CORRECTION_STATE_OFF:
-            if (audio_playback_get_buffer_fill_size() > AUDIO_BUFFER_MAX_FILL_SIZE) {
+            if (AUDIO_BUFFER_FILL_SIZE > AUDIO_BUFFER_MAX_FILL_SIZE) {
                 // The fill size is too high, compensate by means of lower feedback value.
                 g_feedback.correction_state = AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE;
-            } else if (audio_playback_get_buffer_fill_size() < AUDIO_BUFFER_MIN_FILL_SIZE) {
+            } else if (AUDIO_BUFFER_FILL_SIZE < AUDIO_BUFFER_MIN_FILL_SIZE) {
                 // The fill size is too low, compensate by means of higher feedback value.
                 g_feedback.correction_state = AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE;
             }
             /* fall through */
 
         case AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE:
-            if (audio_playback_get_buffer_fill_size() <= audio_playback_get_buffer_target_fill_size()) {
+            if (AUDIO_BUFFER_FILL_SIZE <= AUDIO_BUFFER_TARGET_FILL_SIZE) {
                 // Switch off correction, when reaching target fill size.
                 g_feedback.correction_state = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
             } else {
@@ -161,7 +165,7 @@ static void audio_feedback_correct(void) {
             break;
 
         case AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE:
-            if (audio_playback_get_buffer_fill_size() >= audio_playback_get_buffer_target_fill_size()) {
+            if (AUDIO_BUFFER_FILL_SIZE >= AUDIO_BUFFER_TARGET_FILL_SIZE) {
                 // Switch off correction, when reaching target fill size.
                 g_feedback.correction_state = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
             }
@@ -311,7 +315,11 @@ void audio_feedback_stop_sof_capture(void) {
  * @param endpoint_identifier The endpoint, for which the feedback was called.
  */
 void audio_feedback_cb(USBDriver *p_usb, usbep_t endpoint_identifier) {
-    if (audio_playback_get_state() == AUDIO_PLAYBACK_STATE_IDLE) {
+    chSysLockFromISR();
+    bool b_playback_idle = audio_playback_get_state() == AUDIO_PLAYBACK_STATE_IDLE;
+    chSysUnlockFromISR();
+
+    if (b_playback_idle) {
         // Feedback values can only be reported, when audio playback is not idle.
         return;
     }
@@ -335,6 +343,7 @@ void audio_feedback_cb(USBDriver *p_usb, usbep_t endpoint_identifier) {
  * @brief Initialize the audio feedback structure.
  */
 void audio_feedback_init(void) {
+    chDbgCheckClassI();
     g_feedback.correction_state   = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
     g_feedback.state              = AUDIO_FEEDBACK_STATE_IDLE;
     g_feedback.sof_package_count  = 0u;

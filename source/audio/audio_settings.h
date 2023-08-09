@@ -24,14 +24,14 @@
  * @details Larger numbers allow more tolerance for changes in provided sample rate, but lead to more latency.
  */
 #ifndef AUDIO_BUFFER_PACKET_COUNT
-#define AUDIO_BUFFER_PACKET_COUNT 5u
+#define AUDIO_BUFFER_PACKET_COUNT 7u
 #endif
 
 /**
  * @brief The exponent of the period between feedback packets in 2^N ms.
  */
 #ifndef AUDIO_FEEDBACK_PERIOD_EXPONENT
-#define AUDIO_FEEDBACK_PERIOD_EXPONENT 0x03u
+#define AUDIO_FEEDBACK_PERIOD_EXPONENT 0x02u
 #endif
 
 // Audio volume adjustment settings.
