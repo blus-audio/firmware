@@ -19,7 +19,7 @@ repos:
   - id: cpplint
 
 - repo: https://github.com/crate-ci/typos
-  rev: v1.16.14
+  rev: v1.16.17
   hooks:
   - id: typos
     args:
