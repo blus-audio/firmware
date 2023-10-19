@@ -17,11 +17,6 @@
 #include "tas2780.h"
 
 /**
- * @brief Global stream pointer for print messages.
- */
-static BaseSequentialStream *gp_stream = (BaseSequentialStream *)&SD2;
-
-/**
  * @brief Settings structure for the TAS2780 I2C driver.
  */
 static const I2CConfig g_tas2780_i2c_config = {
@@ -70,32 +65,31 @@ static THD_FUNCTION(housekeeping_thread, arg) {
     chRegSetThreadName("reporting");
 
     while (true) {
+        tas2780_acquire_lock();
         tas2780_ensure_active_all();
+        tas2780_release_lock();
 
-        chBSemWait(&g_stream_lock);
         chSysLock();
-        size_t buffer_fill_size = audio_playback_get_buffer_fill_size();
-        size_t feedback_value   = audio_feedback_get_value();
-        size_t playback_state   = audio_playback_get_state();
+        // size_t buffer_fill_size = audio_playback_get_buffer_fill_size();
+        // size_t feedback_value   = audio_feedback_get_value();
+        // size_t playback_state   = audio_playback_get_state();
         chSysUnlock();
 
 // Disable extended reporting statistics.
 #if 0
         uint8_t noise_gate_mask = tas2780_get_noise_gate_mask_all();
-        chprintf(gp_stream, "Noise gate: %u\n", noise_gate_mask);
+        PRINTF("Noise gate: %u\n", noise_gate_mask);
 
-        chprintf(gp_stream, "Potentiometer: %u\n",
+        PRINTF("Potentiometer: %u\n",
                  g_adc_sample >> 4);  // Convert to an 8 bit number.
 
-        chprintf(gp_stream, "Volume: %li / %li dB\n",
+        PRINTF("Volume: %li / %li dB\n",
                  (audio_request_get_channel_volume(AUDIO_COMMON_CHANNEL_LEFT) >> 8),
                  (audio_request_get_channel_volume(AUDIO_COMMON_CHANNEL_RIGHT) >> 8));
 #endif
 
-        chprintf(gp_stream, "Buffer: %lu / %lu (fb %lu) @ state %lu\n", buffer_fill_size, AUDIO_MAX_BUFFER_SIZE,
-                 feedback_value, playback_state);
-
-        chBSemSignal(&g_stream_lock);
+        // PRINTF("Buffer: %u / %u (fb %u) @ state %u\n", buffer_fill_size, AUDIO_MAX_BUFFER_SIZE, feedback_value,
+        //        playback_state);
 
         chThdSleepMilliseconds(500);
     }
@@ -107,7 +101,12 @@ static THD_FUNCTION(housekeeping_thread, arg) {
 void app_setup(void) {
     // Setup amplifiers.
     i2cStart(&I2CD1, &g_tas2780_i2c_config);
+
+    tas2780_init();
+
+    tas2780_acquire_lock();
     tas2780_setup_all();
+    tas2780_release_lock();
 
     // Begin reading volume potentiometer ADC.
     app_start_volume_adc();
@@ -128,6 +127,7 @@ static void app_set_volume_and_mute_state(void) {
     int16_t right_channel_volume = audio_request_get_channel_volume(AUDIO_COMMON_CHANNEL_RIGHT);
     chSysUnlock();
 
+    tas2780_acquire_lock();
     if (b_left_channel_is_muted) {
         tas2780_set_volume_all(TAS2780_VOLUME_MUTE, TAS2780_CHANNEL_LEFT);
     } else {
@@ -139,6 +139,7 @@ static void app_set_volume_and_mute_state(void) {
     } else {
         tas2780_set_volume_all(right_channel_volume, TAS2780_CHANNEL_RIGHT);
     }
+    tas2780_release_lock();
 }
 
 /**

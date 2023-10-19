@@ -15,6 +15,26 @@
 #include "tas2780_settings.h"
 
 /**
+ * @brief The locking semaphore for the TAS2780 module.
+ */
+static binary_semaphore_t g_bsem;
+
+/**
+ * @brief Lock the TAS2780 module.
+ */
+void tas2780_acquire_lock(void) { chBSemWait(&g_bsem); }
+
+/**
+ * @brief Release the TAS2780 module.
+ */
+void tas2780_release_lock(void) { chBSemSignal(&g_bsem); }
+
+/**
+ * @brief Initialize the TAS2780 module.
+ */
+void tas2780_init(void) { chBSemObjectInit(&g_bsem, false); }
+
+/**
  * @brief All amplifier contexts.
  * @details Will be set up with settings from \a tas2780_settings.h .
  */

@@ -15,6 +15,9 @@
             "servertype": "external",
             "preLaunchTask": "Launch OpenOCD",
             "gdbTarget": "${env:WSL2_HOST_IP}:3333",
+            "preLaunchCommands": [
+                "monitor arm semihosting enable",
+            ],
         }
     ]
 }

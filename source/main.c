@@ -17,8 +17,8 @@
 
 #include "audio.h"
 #include "ch.h"
-#include "chprintf.h"
 #include "hal.h"
+#include "print.h"
 #include "usb.h"
 
 /**
@@ -35,16 +35,6 @@ static mailbox_t g_mailbox;
  * @brief The mailbox buffer.
  */
 static msg_t g_mailbox_buffer[MESSAGE_BUFFER_LENGTH];
-
-/**
- * @brief Global stream pointer for print messages.
- */
-static BaseSequentialStream *gp_stream = (BaseSequentialStream *)&SD2;
-
-/**
- * @brief A lock for the stream that is used for printing messages.
- */
-binary_semaphore_t g_stream_lock;
 
 // Weak definitions that shall be overridden by the user application (if required).
 
@@ -69,6 +59,11 @@ __WEAK void app_set_volume(void) {}
 __WEAK void app_set_mute_state(void) {}
 
 /**
+ * @brief Semihosting initialization.
+ */
+extern void initialise_monitor_handles(void);
+
+/**
  * @brief Application entry point.
  *
  * @return int The return code.
@@ -76,6 +71,9 @@ __WEAK void app_set_mute_state(void) {}
 int main(void) {
     halInit();
     chSysInit();
+
+    // Enable semihosting interface.
+    initialise_monitor_handles();
 
     // Initialize the main thread mailbox that receives audio messages (volume, mute).
     chMBObjectInit(&g_mailbox, g_mailbox_buffer, ARRAY_LENGTH(g_mailbox_buffer));
@@ -86,14 +84,10 @@ int main(void) {
     // Initialize the USB module.
     usb_setup();
 
-    chBSemObjectInit(&g_stream_lock, false);
-
     // Initialize a stream for print messages.
     sdStart(&SD2, NULL);
 
-    chBSemWait(&g_stream_lock);
-    chprintf(gp_stream, "### Starting USB-I2S bridge.\n");
-    chBSemSignal(&g_stream_lock);
+    PRINTF("### Starting USB-I2S bridge.\n");
 
     // Set up the user application.
     app_setup();
@@ -107,21 +101,19 @@ int main(void) {
             chSysHalt("Failed to receive message.");
         }
 
-        chBSemWait(&g_stream_lock);
-
         switch (message) {
             case AUDIO_COMMON_MSG_RESET_VOLUME:
-                chprintf(gp_stream, "### Reset volume.\n");
+                PRINTF("### Reset volume.\n");
                 app_reset_volume();
                 break;
 
             case AUDIO_COMMON_MSG_SET_MUTE_STATE:
-                chprintf(gp_stream, "### Set mute state.\n");
+                PRINTF("### Set mute state.\n");
                 app_set_mute_state();
                 break;
 
             case AUDIO_COMMON_MSG_SET_VOLUME:
-                chprintf(gp_stream, "### Set volume.\n");
+                PRINTF("### Set volume.\n");
                 app_set_volume();
                 break;
 
@@ -129,8 +121,6 @@ int main(void) {
                 chSysHalt("Unknown message type.");
                 break;
         }
-
-        chBSemSignal(&g_stream_lock);
     }
 }
 

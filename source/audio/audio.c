@@ -14,13 +14,8 @@
 
 #include <string.h>
 
-#include "chprintf.h"
 #include "common.h"
-
-/**
- * @brief Global stream pointer for print messages.
- */
-static BaseSequentialStream *gp_stream = (BaseSequentialStream *)&SD2;
+#include "print.h"
 
 /**
  * @brief The number of audio messages that can be held.
@@ -165,7 +160,7 @@ static void audio_update_sample_rate(void) {
     g_i2s_config.i2spr = AUDIO_SPI_GET_I2SPR(sample_rate_hz);
 }
 
-static THD_WORKING_AREA(wa_audio_thread, 128);
+static THD_WORKING_AREA(wa_audio_thread, 256u);
 
 /**
  * @brief A thread that handles audio-related tasks.
@@ -192,9 +187,7 @@ static THD_FUNCTION(audio_thread, arg) {
 
         switch (message) {
             case AUDIO_COMMON_MSG_START_PLAYBACK:
-                chBSemWait(&g_stream_lock);
-                chprintf(gp_stream, "### Start playback.\n");
-                chBSemSignal(&g_stream_lock);
+                PRINTF("### Start playback.\n");
 
                 // Set volumes to the values configured via USB audio.
                 audio_send_app_message(AUDIO_COMMON_MSG_SET_VOLUME);
@@ -205,9 +198,7 @@ static THD_FUNCTION(audio_thread, arg) {
                 break;
 
             case AUDIO_COMMON_MSG_STOP_PLAYBACK:
-                chBSemWait(&g_stream_lock);
-                chprintf(gp_stream, "### Stop playback.\n");
-                chBSemSignal(&g_stream_lock);
+                PRINTF("### Stop playback.\n");
 
                 audio_feedback_stop_sof_capture();
                 i2sStopExchange(&I2S_DRIVER);
@@ -217,9 +208,7 @@ static THD_FUNCTION(audio_thread, arg) {
                 break;
 
             case AUDIO_COMMON_MSG_SET_SAMPLE_RATE:
-                chBSemWait(&g_stream_lock);
-                chprintf(gp_stream, "### Set sample rate.\n");
-                chBSemSignal(&g_stream_lock);
+                PRINTF("### Set sample rate.\n");
 
                 chSysLock();
                 audio_update_sample_rate();

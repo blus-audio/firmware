@@ -43,7 +43,7 @@ static volatile struct audio_request_message {
     uint16_t value;         ///< The wValue field of the request.
     uint16_t index;         ///< The wIndex field of the request.
     uint16_t length;        ///< The valid data length.
-    uint8_t  data[8u];      ///< The data buffer.
+    uint8_t  data[1024u];   ///< The data buffer.
 } g_request;
 
 /**
@@ -397,6 +397,8 @@ bool audio_request_hook_cb(USBDriver *p_usb) {
     g_request.value        = (p_usb->setup[3] << 8) | (p_usb->setup[2]);
     g_request.index        = ((p_usb->setup[5] << 8) | p_usb->setup[4]);
     g_request.length       = ((p_usb->setup[7] << 8) | p_usb->setup[6]);
+
+    chDbgAssert(g_request.length <= ARRAY_LENGTH(g_request.data), "Request data buffer exceeded.");
 
     switch (g_request.request_type & USB_RTYPE_TYPE_MASK) {
         case USB_RTYPE_TYPE_STD:

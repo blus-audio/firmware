@@ -127,11 +127,6 @@ __STATIC_INLINE size_t add_circular_unsigned(size_t summand_a, size_t summand_b,
     return wrap_unsigned(summand_a + summand_b, max_value);
 }
 
-/**
- * @brief A lock for the stream that is used for printing messages, defined in the \a main module.
- */
-extern binary_semaphore_t g_stream_lock;
-
 #endif  // SOURCE_COMMON_H_
 
 /**
