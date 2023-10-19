@@ -14,6 +14,7 @@
 #include "audio.h"
 #include "ch.h"
 #include "chprintf.h"
+#include "print.h"
 #include "tas2780.h"
 
 /**
@@ -70,9 +71,9 @@ static THD_FUNCTION(housekeeping_thread, arg) {
         tas2780_release_lock();
 
         chSysLock();
-        // size_t buffer_fill_size = audio_playback_get_buffer_fill_size();
-        // size_t feedback_value   = audio_feedback_get_value();
-        // size_t playback_state   = audio_playback_get_state();
+        size_t buffer_fill_size = audio_playback_get_buffer_fill_size();
+        size_t feedback_value   = audio_feedback_get_value();
+        size_t playback_state   = audio_playback_get_state();
         chSysUnlock();
 
 // Disable extended reporting statistics.
@@ -88,8 +89,8 @@ static THD_FUNCTION(housekeeping_thread, arg) {
                  (audio_request_get_channel_volume(AUDIO_COMMON_CHANNEL_RIGHT) >> 8));
 #endif
 
-        // PRINTF("Buffer: %u / %u (fb %u) @ state %u\n", buffer_fill_size, AUDIO_MAX_BUFFER_SIZE, feedback_value,
-        //        playback_state);
+        PRINTF("Buffer: %u / %u (fb %u) @ state %u\n", buffer_fill_size, AUDIO_MAX_BUFFER_SIZE, feedback_value,
+               playback_state);
 
         chThdSleepMilliseconds(500);
     }
