@@ -5,22 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Cortex Debug - STLink",
-            "cwd": "${workspaceFolder}",
-            "executable": "./build/blus_mini_firmware.elf",
-            "svdFile": "STM32F401.svd",
-            "request": "launch",
-            "type": "cortex-debug",
-            "runToEntryPoint": "main",
-            "servertype": "openocd",
-            "interface": "swd",
-            "configFiles": [
-                "interface/stlink.cfg",
-                "target/stm32f4x.cfg"
-            ],
-        },
-        {
-            "name": "Cortex Debug - External",
+            "name": "Cortex Debug",
             "cwd": "${workspaceFolder}",
             "executable": "./build/blus_mini_firmware.elf",
             "svdFile": "STM32F401.svd",
@@ -28,9 +13,8 @@
             "type": "cortex-debug",
             "runToEntryPoint": "main",
             "servertype": "external",
-            "gdbTarget": "172.27.0.1:2331",
-            "postLaunchCommands": ["monitor halt", "monitor reset"],
-            // "gdbTarget": "${env:WSL2_HOST_IP}:2331",
+            "preLaunchTask": "Launch OpenOCD",
+            "gdbTarget": "${env:WSL2_HOST_IP}:3333",
         }
     ]
 }
