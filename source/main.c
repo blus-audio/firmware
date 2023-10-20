@@ -73,7 +73,7 @@ int main(void) {
     chSysInit();
 
     // Enable semihosting interface.
-    initialise_monitor_handles();
+    // initialise_monitor_handles();
 
     // Initialize the main thread mailbox that receives audio messages (volume, mute).
     chMBObjectInit(&g_mailbox, g_mailbox_buffer, ARRAY_LENGTH(g_mailbox_buffer));

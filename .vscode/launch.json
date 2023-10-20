@@ -5,7 +5,19 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Cortex Debug",
+            "name": "Cortex Debug (Attach)",
+            "cwd": "${workspaceFolder}",
+            "executable": "./build/blus_mini_firmware.elf",
+            "svdFile": "STM32F401.svd",
+            "request": "attach",
+            "type": "cortex-debug",
+            "runToEntryPoint": "main",
+            "servertype": "external",
+            "preLaunchTask": "Launch OpenOCD",
+            "gdbTarget": "${env:WSL2_HOST_IP}:3333",
+        },
+        {
+            "name": "Cortex Debug (Launch)",
             "cwd": "${workspaceFolder}",
             "executable": "./build/blus_mini_firmware.elf",
             "svdFile": "STM32F401.svd",
