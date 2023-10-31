@@ -187,8 +187,26 @@ static void audio_playback_update_fill_size(void) {
  */
 static void audio_playback_start_playing(void) {
     chDbgCheckClassI();
+
     if (g_playback.state == AUDIO_PLAYBACK_STATE_PLAYING) {
         // Playback already enabled.
+
+        // Forcefully adjust buffer write offset, in case the buffer fill size is outside of an acceptable range.
+        // Allow a fraction of a packet of deviation.
+        int16_t      buffer_fill_size_error         = 0;
+        const size_t MAX_BUFFER_FILL_SIZE_DEVIATION = g_playback.packet_size / 2;
+
+        if (g_playback.buffer_fill_size > (g_playback.buffer_target_fill_size + MAX_BUFFER_FILL_SIZE_DEVIATION)) {
+            buffer_fill_size_error = g_playback.buffer_fill_size - g_playback.buffer_target_fill_size;
+        } else if ((g_playback.buffer_fill_size + MAX_BUFFER_FILL_SIZE_DEVIATION) <
+                   g_playback.buffer_target_fill_size) {
+            buffer_fill_size_error = g_playback.buffer_target_fill_size - g_playback.buffer_fill_size;
+        }
+
+        // Update the write offset, in order to cancel fill size errors.
+        g_playback.buffer_write_offset =
+            wrap_unsigned(g_playback.buffer_write_offset + buffer_fill_size_error, g_playback.buffer_size);
+
         return;
     }
 

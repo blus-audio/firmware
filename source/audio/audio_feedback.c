@@ -16,16 +16,6 @@
 #include "audio_playback.h"
 
 /**
- * @brief The amount by which the feedback value is adjusted, when the buffer fill size is critical.
- *
- * @details This translates to a difference in reported sample rate of
- * \a AUDIO_FEEDBACK_CORRECTION_OFFSET * 2**14 / 1000
- *
- * For example, 16 represents a reported offset of 1.024 Hz - a mild adjustment.
- */
-#define AUDIO_FEEDBACK_CORRECTION_OFFSET (256u)
-
-/**
  * @brief The minimum supported exponent of the period between feedback packets.
  */
 #define AUDIO_FEEDBACK_MIN_PERIOD_EXPONENT 0x01u
@@ -52,13 +42,6 @@
  */
 #define AUDIO_FEEDBACK_BUFFER_SIZE 3u
 
-/**
- * @brief Maximum deviation from ideal buffer size in packets.
- * @details The number of audio packets that the buffer fill size is allowed to deviate from its ideal fill size, before
- * the forceful feedback correction is applied.
- */
-#define AUDIO_FEEDBACK_MAX_PACKET_DEVIATION_COUNT 1u
-
 // Sanity checks.
 #if AUDIO_FEEDBACK_PERIOD_EXPONENT < AUDIO_FEEDBACK_MIN_PERIOD_EXPONENT
 #error "Unsupported feedback period exponent - too small."
@@ -67,27 +50,6 @@
 #if AUDIO_FEEDBACK_PERIOD_EXPONENT > AUDIO_FEEDBACK_MAX_PERIOD_EXPONENT
 #error "Unsupported feedback period exponent - too large."
 #endif
-
-// The buffer holds N packets. The target buffer level in packets is: N/2 + 1/2.
-// With a packet deviation count of M, there is a space of
-//   N - (N/2 + 1/2 + M)
-// between the upper allowed fill level, and the end of the buffer. Thus,
-//   -2M + N - 1 > 0 => 1 + 2M < N
-// must be fulfilled.
-#if ((2u * AUDIO_FEEDBACK_MAX_PACKET_DEVIATION_COUNT) + 1u) >= AUDIO_BUFFER_PACKET_COUNT
-#error "Feedback deviation correction packet count too large - decrease it, or increase audio buffer packet count."
-#endif
-
-/**
- * @brief The state of the feedback correction.
- */
-enum audio_feedback_correction_state {
-    AUDIO_FEEDBACK_CORRECTION_STATE_OFF,       ///< No feedback correction active.
-    AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE,  ///< Decrease the feedback value in case of over-filled audio
-                                               ///< buffer.
-    AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE   ///< Increase the feedback value in case of under-filled audio
-                                               ///< buffer.
-};
 
 /**
  * @brief The general state of audio feedback reporting.
@@ -102,10 +64,8 @@ enum audio_feedback_state {
  * @brief A structure that holds the state of the audio sample rate feedback.
  */
 struct audio_feedback {
-    enum audio_feedback_correction_state correction_state;   ///< The state of forced feedback value correction.
-    size_t                               sof_package_count;  ///< Counts the SOF packages since the last
-                                                             ///< feedback value update.
-    uint32_t                  value;                         ///< The current feedback value.
+    size_t                    sof_package_count;   ///< Counts the SOF packages since the last feedback value update.
+    uint32_t                  value;               ///< The current feedback value.
     uint32_t                  last_counter_value;  ///< The counter value at the time of the previous SOF interrupt.
     enum audio_feedback_state state;               ///< The general state of audio feedback reporting.
 } g_feedback;
@@ -116,66 +76,6 @@ struct audio_feedback {
  * @return uint32_t The feedback value.
  */
 uint32_t audio_feedback_get_value(void) { return g_feedback.value; }
-
-/**
- * @brief Perform a manual correction on the feedback value, for steering the host's sample rate.
- * @details The general USB 2.0 specification states (5.12.4.2, p. 75): "It is possible that the source will deliver one
- * too many or one too few samples over a long period due to errors or accumulated inaccuracies in measuring Ff. The
- * sink must have sufficient buffer capability to accommodate this. When the sink recognizes this condition, it should
- * adjust the reported Ff value to correct it. This may also be necessary to compensate for relative clock drifts."
- *
- * FIXME: On Windows, pausing audio for a while does not immediately switch alternate modes to zero-bandwidth, but leads
- * to the generation of zero-length audio packets. This application can detect zero packets, and stops playback, and the
- * transmission of feedback values. When the audio is started again, there seems to be host-side confusion about the
- * size of audio packets that need to be transmitted - they are usually too small in the beginning. Thus, the audio
- * buffer may underrun, which needs to be compensated manually. This audio feedback correction function is a workaround
- * for that symptom.
- */
-static void audio_feedback_correct(void) {
-    // Calculate thresholds for the buffer fill size.
-    chSysLockFromISR();
-    const size_t AUDIO_BUFFER_TARGET_FILL_SIZE = audio_playback_get_buffer_target_fill_size();
-    const size_t AUDIO_PACKET_SIZE             = audio_playback_get_packet_size();
-    const size_t AUDIO_BUFFER_FILL_SIZE        = audio_playback_get_buffer_fill_size();
-    chSysUnlockFromISR();
-
-    const size_t AUDIO_BUFFER_MAX_FILL_SIZE =
-        AUDIO_BUFFER_TARGET_FILL_SIZE + (AUDIO_FEEDBACK_MAX_PACKET_DEVIATION_COUNT * AUDIO_PACKET_SIZE);
-    const size_t AUDIO_BUFFER_MIN_FILL_SIZE =
-        AUDIO_BUFFER_TARGET_FILL_SIZE - (AUDIO_FEEDBACK_MAX_PACKET_DEVIATION_COUNT * AUDIO_PACKET_SIZE);
-
-    switch (g_feedback.correction_state) {
-        case AUDIO_FEEDBACK_CORRECTION_STATE_OFF:
-            if (AUDIO_BUFFER_FILL_SIZE > AUDIO_BUFFER_MAX_FILL_SIZE) {
-                // The fill size is too high, compensate by means of lower feedback value.
-                g_feedback.correction_state = AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE;
-            } else if (AUDIO_BUFFER_FILL_SIZE < AUDIO_BUFFER_MIN_FILL_SIZE) {
-                // The fill size is too low, compensate by means of higher feedback value.
-                g_feedback.correction_state = AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE;
-            }
-            /* fall through */
-
-        case AUDIO_FEEDBACK_CORRECTION_STATE_DECREASE:
-            if (AUDIO_BUFFER_FILL_SIZE <= AUDIO_BUFFER_TARGET_FILL_SIZE) {
-                // Switch off correction, when reaching target fill size.
-                g_feedback.correction_state = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
-            } else {
-                g_feedback.value -= AUDIO_FEEDBACK_CORRECTION_OFFSET;
-            }
-            break;
-
-        case AUDIO_FEEDBACK_CORRECTION_STATE_INCREASE:
-            if (AUDIO_BUFFER_FILL_SIZE >= AUDIO_BUFFER_TARGET_FILL_SIZE) {
-                // Switch off correction, when reaching target fill size.
-                g_feedback.correction_state = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
-            }
-            { g_feedback.value += AUDIO_FEEDBACK_CORRECTION_OFFSET; }
-            break;
-
-        default:
-            break;
-    }
-}
 
 /**
  * @brief The interrupt handler for timer TIM2.
@@ -253,13 +153,8 @@ OSAL_IRQ_HANDLER(STM32_TIM2_HANDLER) {
                            << AUDIO_FEEDBACK_SHIFT;
 
         g_feedback.last_counter_value = counter_value;
-
-        // If there is too much discrepancy between the target sample buffer fill size, and the actual fill size, this
-        // must be compensated manually.
-        audio_feedback_correct();
-
-        g_feedback.sof_package_count = 0u;
-        g_feedback.state             = AUDIO_FEEDBACK_STATE_ACTIVE;
+        g_feedback.sof_package_count  = 0u;
+        g_feedback.state              = AUDIO_FEEDBACK_STATE_ACTIVE;
     }
 
     OSAL_IRQ_EPILOGUE();
@@ -344,7 +239,6 @@ void audio_feedback_cb(USBDriver *p_usb, usbep_t endpoint_identifier) {
  */
 void audio_feedback_init(void) {
     chDbgCheckClassI();
-    g_feedback.correction_state   = AUDIO_FEEDBACK_CORRECTION_STATE_OFF;
     g_feedback.state              = AUDIO_FEEDBACK_STATE_IDLE;
     g_feedback.sof_package_count  = 0u;
     g_feedback.last_counter_value = 0u;

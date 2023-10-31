@@ -31,7 +31,7 @@
  * @brief The exponent of the period between feedback packets in 2^N ms.
  */
 #ifndef AUDIO_FEEDBACK_PERIOD_EXPONENT
-#define AUDIO_FEEDBACK_PERIOD_EXPONENT 0x02u
+#define AUDIO_FEEDBACK_PERIOD_EXPONENT 0x03u
 #endif
 
 // Audio volume adjustment settings.
