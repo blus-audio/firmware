@@ -83,6 +83,17 @@ enum usb_desc_interface {
 };
 
 /**
+ * @brief USB audio format types codes.
+ * @note See the "Universal Serial Bus Device Class Definition for Audio Data Formats", chapter 2 (p.8).
+ */
+enum udb_desc_audio_format_type {
+    USB_DESC_AUDIO_FORMAT_TYPE_UNDEFINED = 0x00u,  ///< Undefined audio data format.
+    USB_DESC_AUDIO_FORMAT_TYPE_I         = 0x01u,  ///< Audio streams that are constructed on a sample-by-sample basis.
+    USB_DESC_AUDIO_FORMAT_TYPE_II        = 0x02u,  ///< Non-PCM audio.
+    USB_DESC_AUDIO_FORMAT_TYPE_III       = 0x03u,  ///< Special formats.
+};
+
+/**
  * @brief USB terminal types.
  */
 enum usb_desc_terminal_type {
@@ -271,7 +282,7 @@ static const uint8_t audio_configuration_descriptor_data[USB_DESCRIPTORS_TOTAL_L
     USB_DESC_BYTE(14u),                                     // bLength.
     USB_DESC_BYTE(0x24u),                                   // bDescriptorType (CS_INTERFACE).
     USB_DESC_BYTE(0x02u),                                   // bDescriptorSubtype (Format).
-    USB_DESC_BYTE(0x02u),                                   // bFormatType (Type I).
+    USB_DESC_BYTE(USB_DESC_AUDIO_FORMAT_TYPE_I),            // bFormatType (Type I).
     USB_DESC_BYTE(AUDIO_CHANNEL_COUNT),                     // bNrChannels.
     USB_DESC_BYTE(AUDIO_SAMPLE_SIZE),                       // bSubframeSize.
     USB_DESC_BYTE(AUDIO_RESOLUTION_BIT),                    // bBitResolution.
