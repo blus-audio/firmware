@@ -104,3 +104,16 @@ This feedback mechanism is a control loop, where the sound card (USB device) is 
 
 For more detail, see [UAC v1 specification](./doc/audio10.pdf). The audio feedback mechanism is implemented as described in *3.7.2.2 Isochronous Synch Endpoint* (p. 32).
 An extended description is found in the [general USB 2.0 specification](./doc/usb_20.pdf) in *5.12.4.2 Feedback* (p.75). Information about [supported audio formats](./doc/frmts10.pdf) and [terminal types](./doc/termt10.pdf) is also available.
+
+# Summary of documentation
+
+## General
+
+- [Universal Serial Bus Specification](./doc/usb_20.pdf)
+- [Universal Serial Bus Device Class Definition for Terminal Types](./doc/termt10.pdf)
+- [Universal Serial Bus Class Definitions for Communications Devices](./doc/cdc120.pdf)
+
+## Audio specific
+
+- [Universal Serial Bus Device Class Definition for Audio Devices](./doc/audio10.pdf)
+- [Universal Serial Bus Device Class Definition for Audio Data Formats](./doc/frmts10.pdf)
