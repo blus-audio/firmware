@@ -1,6 +1,6 @@
 repos:
 - repo: https://github.com/pre-commit/mirrors-clang-format
-  rev: v18.1.5
+  rev: v18.1.6
   hooks:
   - id: clang-format
     types_or: [c++, c]
@@ -19,7 +19,7 @@ repos:
   - id: cpplint
 
 - repo: https://github.com/crate-ci/typos
-  rev: v1.21.0
+  rev: v1.22.4
   hooks:
   - id: typos
     args:
