@@ -1,5 +1,10 @@
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/elagil/usb-i2s-bridge/main.svg)](https://results.pre-commit.ci/latest/github/elagil/usb-i2s-bridge/main)
 
+# Deprecation notice
+
+Archived in favor of the more flexible and stable [rust version](https://github.com/blus-audio/firmware-rs).
+Check the Black pill firmware for a close replacement of this. Binary releases are available.
+
 # USB-I2S audio bridge
 
 This is a firmware project that mainly implements a UAC v1 compliant sound card.
